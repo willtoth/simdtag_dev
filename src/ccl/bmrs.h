@@ -10,25 +10,27 @@
 // Department of Physics
 // Konkuk University, Korea
 
+#pragma once
 
-#ifndef YACCLAB_LABELING_BMRS
-#define YACCLAB_LABELING_BMRS
-#include <vector>
 #include <opencv2/core.hpp>
 
 #include "disjoint_set.h"
 #include "bit_scan_forward.h"
 
+#include <iostream>
+
 #include <immintrin.h>
 
-template <size_t W, size_t H>
-static constexpr size_t LabelSolverUpperBound() {
+namespace apriltag {
+
+namespace {
+static constexpr inline size_t LabelSolverUpperBound(size_t w, size_t h) {
     // #define UPPER_BOUND_4_CONNECTIVITY (((size_t)img_.rows * (size_t)img_.cols + 1) / 2 + 1)
     // #define UPPER_BOUND_8_CONNECTIVITY ((size_t)((img_.rows + 1) / 2) * (size_t)((img_.cols + 1) / 2) + 1)
-    return (((H + 1) / 2) * ((W + 1) / 2) + 1);
+    return (((h + 1) / 2) * ((w + 1) / 2) + 1);
+}
 }
 
-template <size_t W, size_t H>
 class BMRS
 {
     struct Data_Compressed {
@@ -69,18 +71,18 @@ class BMRS
     Data_Compressed data_merged;
     Data_Compressed data_flags;
     Runs data_runs;
-    DisjointSet<LabelSolverUpperBound<W, H>()> label_solver_;
+    DisjointSet label_solver_;
 
 public:
     cv::Mat1b& img_;
     cv::Mat1i& img_labels_;
     unsigned int n_labels_;
     
-    BMRS(cv::Mat1b& input, cv::Mat1i& labels) : img_(input), img_labels_(labels) {}
-    void PerformLabeling()
+    BMRS(cv::Mat1b& input, cv::Mat1i& labels) : img_(input), img_labels_(labels), label_solver_(LabelSolverUpperBound(input.rows, input.cols)) {}
+    void LocalPerformLabeling()
     {
-        int w(W);
-        int h(H);
+        int w(img_.cols);
+        int h(img_.rows);
 
         data_compressed.Alloc(h, w);
         InitCompressedData(data_compressed);
@@ -386,7 +388,6 @@ private:
         memset(data_flags.bits, 0, data_flags.height * data_flags.data_width * sizeof(uint64_t));
     }
     void Dealloc() {
-        label_solver_.Dealloc();
         data_runs.Dealloc();
         data_flags.Dealloc();
         data_merged.Dealloc();
@@ -394,4 +395,5 @@ private:
         // No free for img_labels_ because it is required at the end of the algorithm 
     }
 };
-#endif 
+
+} // namespace apriltag

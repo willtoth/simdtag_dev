@@ -22,6 +22,9 @@
 
 #include <immintrin.h>
 
+#define UPPER_BOUND_4_CONNECTIVITY (((size_t)img_.rows * (size_t)img_.cols + 1) / 2 + 1)
+#define UPPER_BOUND_8_CONNECTIVITY ((size_t)((img_.rows + 1) / 2) * (size_t)((img_.cols + 1) / 2) + 1)
+
 template <typename LabelsSolver>
 class BMRS
 {
@@ -69,8 +72,8 @@ public:
     cv::Mat1i& img_labels_;
     unsigned int n_labels_;
 
-    BMRS() {}
-    void PerformLabeling()
+    BMRS(cv::Mat1b& input, cv::Mat1i& labels) : img_(input), img_labels_(labels) {}
+    void YLPerformLabeling()
     {
         int w(img_.cols);
         int h(img_.rows);
@@ -117,7 +120,7 @@ public:
 
         //find runs
         data_runs.Alloc(h_merge, w);
-        LabelsSolver::Alloc();
+        LabelsSolver::Alloc(UPPER_BOUND_8_CONNECTIVITY);
         LabelsSolver::Setup();
         FindRuns(data_merged.bits, data_flags.bits, h_merge, data_width, data_runs.runs);
 

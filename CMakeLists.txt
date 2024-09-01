@@ -76,14 +76,19 @@ add_executable(
   disjoint_set_bench
   benchmark/ccl/disjoint_set.cpp
 )
+target_include_directories(disjoint_set_bench PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
+target_link_libraries(disjoint_set_bench benchmark::benchmark ${OpenCV_LIBS})
+
 add_executable(
   bmrs
   benchmark/ccl/bmrs.cpp
 )
-target_compile_options(bmrs PUBLIC -std=c++20 -Ofast -mavx2)
-
-target_include_directories(disjoint_set_bench PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
-target_link_libraries(disjoint_set_bench benchmark::benchmark ${OpenCV_LIBS})
+target_compile_options(bmrs PUBLIC -std=c++20 -Ofast -mavx2 -save-temps)
 target_include_directories(bmrs PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
 target_link_libraries(bmrs benchmark::benchmark ${OpenCV_LIBS})
+target_compile_definitions(bmrs PUBLIC CMAKE_PROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 
+add_custom_target(assembly
+    COMMAND ${CMAKE_CXX_COMPILER} -S -fverbose-asm -g ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/ccl/bmrs.cpp -o ${CMAKE_BINARY_DIR}/bmrs.s
+    DEPENDS bmrs
+)

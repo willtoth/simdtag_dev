@@ -2,14 +2,14 @@
 
 #include <exception>
 
-#include "gtest/gtest.h"
 #include <gtest/gtest.h>
-namespace {
+
+using namespace apriltag;
 
 // Demonstrate some basic assertions.
 TEST(DisjointSet, NewLabel) {
     constexpr size_t N = 5;
-    DisjointSet<N> ds;
+    DisjointSet ds(N);
 
     for (int i = 0; i < N; i++) {
         EXPECT_EQ(i, ds.NewLabel());
@@ -17,7 +17,7 @@ TEST(DisjointSet, NewLabel) {
 }
 
 TEST(DisjointSet, MergeFindRootSimple) {
-    DisjointSet<100> ds;
+    DisjointSet ds(100);
     for(int i = 0; i < 100; i++) {
        ds.NewLabel();
     }
@@ -46,7 +46,7 @@ TEST(DisjointSet, MergeFindRootSimple) {
 }
 
 TEST(DisjointSet, MergeTrees) {
-    DisjointSet<100> ds;
+    DisjointSet ds(100);
     for(int i = 0; i < 100; i++) {
        ds.NewLabel();
     }
@@ -74,7 +74,7 @@ TEST(DisjointSet, MergeTrees) {
 }
 
 TEST(DisjointSet, MergeLongTree) {
-    DisjointSet<100> ds;
+    DisjointSet ds(100);
     for(int i = 0; i < 100; i++) {
        ds.NewLabel();
     }
@@ -102,7 +102,7 @@ TEST(DisjointSet, MergeLongTree) {
 }
 
 TEST(DisjointSet, MergeLongTree2) {
-    DisjointSet<100> ds;
+    DisjointSet ds(100);
     for(int i = 0; i < 100; i++) {
        ds.NewLabel();
     }
@@ -130,7 +130,7 @@ TEST(DisjointSet, MergeLongTree2) {
 }
 
 TEST(DisjointSet, Copy) {
-    DisjointSet<100> ds, ds2;
+    DisjointSet ds(100), ds2(100);
     for(int i = 0; i < 100; i++) {
        ds.NewLabel();
     }
@@ -173,7 +173,3 @@ TEST(DisjointSet, Copy) {
     EXPECT_EQ(1, ds2.FindRoot(5));
     EXPECT_EQ(1, ds2.FindRoot(7));
 }
-
-
-} // namespace
-

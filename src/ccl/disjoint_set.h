@@ -8,31 +8,44 @@
 
 #include <array>
 #include <cassert>
+#include <cstring>
+#include <cstdint>
 
-#include <hwy/highway.h>
-#include <memory>
-#include <iostream>
+namespace apriltag {
 
-template <size_t N>
 class DisjointSet {
 public:
-    DisjointSet() : tree_(), length_(0) {}
+    DisjointSet(size_t max_size) : size_(max_size), length_(0) {
+        tree_ = new uint32_t[max_size];
+    }
+
+    DisjointSet(const DisjointSet& other) {
+        *this = other;
+    }
+
+    DisjointSet& operator=(const DisjointSet& other) {
+        delete tree_;
+        tree_ = new uint32_t[other.size_];
+        length_ = other.length_;
+        std::memcpy(tree_, other.tree_, length_ * sizeof(tree_[0]));
+        size_ = other.size_;
+        return *this;
+    }
+
+    ~DisjointSet() {
+        delete tree_;
+    }
 
     uint32_t NewLabel() {
-        assert(length_ < N);
-
         tree_[length_] = length_;
         return length_++;
     }
 
     uint32_t GetLabel(uint32_t index) {
-        assert(index < N);
-
         return tree_[index];
     }
 
     uint32_t FindRoot(uint32_t root) {
-        assert(root < N);
         while (tree_[root] < root) {
             root = tree_[root];
         }
@@ -40,9 +53,6 @@ public:
     }
 
     uint32_t Merge(uint32_t i, uint32_t j) {
-        assert(i < N);
-        assert(j < N);
-
         i = FindRoot(i);
         j = FindRoot(j);
 
@@ -67,6 +77,9 @@ public:
     }
 
 private:
-    std::array<uint32_t, N> tree_;
+    uint32_t* tree_;
     size_t length_;
+    size_t size_;
 };
+
+} // namespace apriltag
