@@ -1,11 +1,11 @@
-#include <hwy/highway.h>
 #include <fmt/format.h>
-#include <cstdint>
-#include <cstdio>
+#include <hwy/highway.h>
+#include <hwy/print-inl.h>
+
 #include <array>
 #include <chrono>
-
-#include <hwy/print-inl.h>
+#include <cstdint>
+#include <cstdio>
 
 namespace hw = hwy::HWY_NAMESPACE;
 
@@ -95,7 +95,7 @@ void ArrayToBinary(uint64_t* __restrict dst, const uint8_t* __restrict src) {
 
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
-}  // namespace project - optional
+}  // namespace project
 HWY_AFTER_NAMESPACE();
 
 int main() {
@@ -127,7 +127,7 @@ int main() {
     uint64_t binaryImage[IMG_H][IMG_W / 8];
     project::HWY_NAMESPACE::ArrayToBinary<IMG_H * IMG_W>(&binaryImage[0][0], &IMG[0][0]);
     fmt::println("{:64b}", binaryImage[0][0]);
-    
+
     project::HWY_NAMESPACE::or_test();
 
     return 0;

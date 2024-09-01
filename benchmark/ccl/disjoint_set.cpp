@@ -1,9 +1,10 @@
+#include "ccl/disjoint_set.h"
+
 #include <benchmark/benchmark.h>
 
-#include "ccl/disjoint_set.h"
-#include "yacclab/labels_solver.h"
-
 #include <cstdlib>
+
+#include "yacclab/labels_solver.h"
 
 static constexpr int N = 100000;
 static constexpr int NUM_SET_TO_MERGE = 100;
@@ -22,18 +23,18 @@ void InitializeSet(TestSet& ds) {
 }
 
 static void BM_DisjointSetMerge(benchmark::State& state) {
-  TestSet ds(N), timedDs(N);
-  InitializeSet(ds);
+    TestSet ds(N), timedDs(N);
+    InitializeSet(ds);
 
-  for (auto _ : state) {
-    state.PauseTiming();
-    timedDs = ds;
-    state.ResumeTiming();
+    for (auto _ : state) {
+        state.PauseTiming();
+        timedDs = ds;
+        state.ResumeTiming();
 
-    for (int i = 0; i < (NUM_SET_TO_MERGE - 1); i++) {
-        ds.Merge((i * 100) + 50, ((i + 1) * 100) + 50);
+        for (int i = 0; i < (NUM_SET_TO_MERGE - 1); i++) {
+            ds.Merge((i * 100) + 50, ((i + 1) * 100) + 50);
+        }
     }
-  }
 }
 
 void InitializeSetYACCLAB() {
@@ -48,24 +49,23 @@ void InitializeSetYACCLAB() {
     }
 }
 
-unsigned * UF::P_;
+unsigned* UF::P_;
 unsigned UF::length_;
 
 static void BM_DisjointSetMergeYACCLAB(benchmark::State& state) {
-  
-  UF::Alloc(N);
-  for (auto _ : state) {
-    state.PauseTiming();
-    UF::Dealloc();
     UF::Alloc(N);
-    UF::Setup();
-    InitializeSetYACCLAB();
-    state.ResumeTiming();
+    for (auto _ : state) {
+        state.PauseTiming();
+        UF::Dealloc();
+        UF::Alloc(N);
+        UF::Setup();
+        InitializeSetYACCLAB();
+        state.ResumeTiming();
 
-    for (int i = 0; i < (NUM_SET_TO_MERGE - 1); i++) {
-        UF::Merge((i * 100) + 50, ((i + 1) * 100) + 50);
+        for (int i = 0; i < (NUM_SET_TO_MERGE - 1); i++) {
+            UF::Merge((i * 100) + 50, ((i + 1) * 100) + 50);
+        }
     }
-  }
 }
 
 BENCHMARK(BM_DisjointSetMerge);

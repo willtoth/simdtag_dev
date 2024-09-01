@@ -1,8 +1,8 @@
 #include "ccl/disjoint_set.h"
 
-#include <exception>
-
 #include <gtest/gtest.h>
+
+#include <exception>
 
 using namespace apriltag;
 
@@ -18,14 +18,14 @@ TEST(DisjointSet, NewLabel) {
 
 TEST(DisjointSet, MergeFindRootSimple) {
     DisjointSet ds(100);
-    for(int i = 0; i < 100; i++) {
-       ds.NewLabel();
+    for (int i = 0; i < 100; i++) {
+        ds.NewLabel();
     }
 
     // 0    1      4    5
     //    2   3    6
     //  7
-    //8   9
+    // 8   9
     ds.Merge(1, 2);
     ds.Merge(1, 3);
     ds.Merge(4, 6);
@@ -47,8 +47,8 @@ TEST(DisjointSet, MergeFindRootSimple) {
 
 TEST(DisjointSet, MergeTrees) {
     DisjointSet ds(100);
-    for(int i = 0; i < 100; i++) {
-       ds.NewLabel();
+    for (int i = 0; i < 100; i++) {
+        ds.NewLabel();
     }
 
     // 0    1        4
@@ -75,8 +75,8 @@ TEST(DisjointSet, MergeTrees) {
 
 TEST(DisjointSet, MergeLongTree) {
     DisjointSet ds(100);
-    for(int i = 0; i < 100; i++) {
-       ds.NewLabel();
+    for (int i = 0; i < 100; i++) {
+        ds.NewLabel();
     }
 
     ds.Merge(1, 2);
@@ -103,8 +103,8 @@ TEST(DisjointSet, MergeLongTree) {
 
 TEST(DisjointSet, MergeLongTree2) {
     DisjointSet ds(100);
-    for(int i = 0; i < 100; i++) {
-       ds.NewLabel();
+    for (int i = 0; i < 100; i++) {
+        ds.NewLabel();
     }
 
     ds.Merge(10, 11);
@@ -131,8 +131,8 @@ TEST(DisjointSet, MergeLongTree2) {
 
 TEST(DisjointSet, Copy) {
     DisjointSet ds(100), ds2(100);
-    for(int i = 0; i < 100; i++) {
-       ds.NewLabel();
+    for (int i = 0; i < 100; i++) {
+        ds.NewLabel();
     }
 
     // 0    1        4
