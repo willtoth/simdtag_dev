@@ -72,7 +72,7 @@ class BMRS {
 
     BMRS(cv::Mat1b& input, cv::Mat1i& labels) : img_(input), img_labels_(labels) {
     }
-    void YLPerformLabeling() {
+    void PerformYLLabeling() {
         int w(img_.cols);
         int h(img_.rows);
 

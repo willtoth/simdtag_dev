@@ -10,6 +10,8 @@ set(CMAKE_CXX_STANDARD              20)
 set(CMAKE_CXX_STANDARD_REQUIRED     ON)
 set(CMAKE_CXX_FLAGS_RELEASE        "-O3")
 
+option(WITH_TESTS "Build unit tests" ON)
+
 project(evetest)
 find_package(OpenCV REQUIRED)
 find_package(HWY 1.2.0 REQUIRED)
@@ -69,23 +71,25 @@ target_include_directories(evetest PRIVATE ${OpenCV_INCLUDE_DIRS} "include")
 #########################
 # test
 #########################
-enable_testing()
+if(WITH_TESTS)
+    enable_testing()
+    include(GoogleTest)
 
-add_executable(
-  disjoint_set_test
-  test/disjoint_set.cpp
-)
-target_compile_options(disjoint_set_test PUBLIC ${COMMON_COMPILE_OPTIONS})
-target_link_libraries(
-  disjoint_set_test
-  GTest::gtest_main
-  apriltag
-)
+    file(GLOB_RECURSE test_source test/*_test.cpp)
 
-target_include_directories(disjoint_set_test PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
+    add_executable(apriltag_test ${test_source})
+    target_compile_options(apriltag_test PUBLIC ${COMMON_COMPILE_OPTIONS})
+    target_link_libraries(
+        apriltag_test
+        GTest::gtest_main
+        apriltag
+    )
+    target_include_directories(apriltag_test PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
+    target_compile_definitions(apriltag_test PUBLIC CMAKE_PROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 
-include(GoogleTest)
-gtest_discover_tests(disjoint_set_test)
+    gtest_discover_tests(apriltag_test)
+
+endif()
 
 #########################
 # benchmarks

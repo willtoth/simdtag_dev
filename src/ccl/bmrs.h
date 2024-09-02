@@ -106,7 +106,11 @@ class BMRS {
         data_compressed.Dealloc();
     }
 
-    void LocalPerformLabeling() {
+    cv::Mat1i* Labels() {
+        return &img_labels_;
+    }
+
+    void PerformLabeling() {
         int w(img_.cols);
         int h(img_.rows);
 

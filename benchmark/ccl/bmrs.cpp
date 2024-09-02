@@ -13,7 +13,7 @@ unsigned UF::length_;
 
 std::string& GetImageFilename() {
     static std::string filename =
-            std::string(CMAKE_PROJECT_SOURCE_DIR) + std::string("/assets/testimage.png");
+            std::string(CMAKE_PROJECT_SOURCE_DIR) + std::string("/assets/yacclab/testimage.png");
     return filename;
 }
 
@@ -22,7 +22,7 @@ static void BM_Bmrs(benchmark::State& state) {
     apriltag::BMRS ccl{thresholdedOutput};
 
     for (auto _ : state) {
-        ccl.LocalPerformLabeling();
+        ccl.PerformLabeling();
     }
 }
 
@@ -32,7 +32,7 @@ static void BM_YacclabBmrs(benchmark::State& state) {
     BMRS<UF> ccl{thresholdedOutput, labels};
 
     for (auto _ : state) {
-        ccl.YLPerformLabeling();
+        ccl.PerformYLLabeling();
     }
 }
 
