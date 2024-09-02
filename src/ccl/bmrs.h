@@ -12,6 +12,8 @@
 
 #pragma once
 
+#include <hwy/contrib/algo/copy-inl.h>
+#include <hwy/highway.h>
 #include <immintrin.h>
 
 #include <iostream>
@@ -20,15 +22,16 @@
 #include "bit_scan_forward.h"
 #include "disjoint_set.h"
 
+namespace hw = hwy::HWY_NAMESPACE;
+
 namespace apriltag {
 
 namespace {
-static constexpr inline size_t LabelSolverUpperBound4Connected(size_t w, size_t h) {
-    return ((h * w + 1) / 2 + 1);
-}
-
-static constexpr inline size_t LabelSolverUpperBound8Connected(size_t w, size_t h) {
-    return (((h + 1) / 2) * ((w + 1) / 2) + 1);
+template <size_t CONNECTIVITY>
+static constexpr inline size_t LabelSolverUpperBound(size_t w, size_t h) {
+    static_assert(CONNECTIVITY == 8 || CONNECTIVITY == 4);
+    if (CONNECTIVITY == 4) return ((h * w + 1) / 2 + 1);
+    if (CONNECTIVITY == 8) return (((h + 1) / 2) * ((w + 1) / 2) + 1);
 }
 }  // namespace
 
@@ -44,6 +47,11 @@ class BMRS {
         void Alloc(int _height, int _width) {
             height = _height, width = _width;
             data_width = _width / 64 + 1;
+
+            // // Add extra to the end so SIMD is always width aligned, assume max 512bits
+            // if (data_width % 64) {
+            //     data_width = data_width + (64 - (data_width % 64));
+            // }
             bits = new uint64_t[height * data_width];
         }
         void Dealloc() {
@@ -72,28 +80,44 @@ class BMRS {
     Data_Compressed data_flags;
     Runs data_runs;
     DisjointSet label_solver_;
-
-   public:
+    cv::Mat1i img_labels_;
     cv::Mat1b& img_;
-    cv::Mat1i& img_labels_;
     unsigned int n_labels_;
 
-    BMRS(cv::Mat1b& input, cv::Mat1i& labels)
-        : img_(input),
-          img_labels_(labels),
-          label_solver_(LabelSolverUpperBound8Connected(input.rows, input.cols)) {
+   public:
+    BMRS(cv::Mat1b& input)
+        : img_(input), label_solver_(LabelSolverUpperBound<8>(input.rows, input.cols)) {
+        img_labels_ = cv::Mat1i(img_.size(), 0);
+
+        int w(img_.cols);
+        int h(img_.rows);
+        int h_merge = h / 2 + h % 2;
+
+        data_compressed.Alloc(h, w);
+        data_merged.Alloc(h_merge, w);
+        data_flags.Alloc(h_merge - 1, w);
+        data_runs.Alloc(h_merge, w);
     }
+
+    ~BMRS() {
+        data_runs.Dealloc();
+        data_flags.Dealloc();
+        data_merged.Dealloc();
+        data_compressed.Dealloc();
+    }
+
     void LocalPerformLabeling() {
         int w(img_.cols);
         int h(img_.rows);
 
-        data_compressed.Alloc(h, w);
+        memset(img_labels_.data, 0, img_labels_.dataend - img_labels_.datastart);
+        label_solver_.Reset();
+
         InitCompressedData(data_compressed);
 
         // generate merged data
         int h_merge = h / 2 + h % 2;
         int data_width = data_compressed.data_width;
-        data_merged.Alloc(h_merge, w);
         for (int i = 0; i < h / 2; i++) {
             uint64_t* pdata_source1 = data_compressed[2 * i];
             uint64_t* pdata_source2 = data_compressed[2 * i + 1];
@@ -108,7 +132,6 @@ class BMRS {
         }
 
         // generate flag bits
-        data_flags.Alloc(h_merge - 1, w);
         for (int i = 0; i < data_flags.height; i++) {
             uint64_t* bits_u = data_compressed[2 * i + 1];
             uint64_t* bits_d = data_compressed[2 * i + 2];
@@ -122,23 +145,16 @@ class BMRS {
                 uint64_t u_shl = u << 1;
                 uint64_t d = bits_d[j];
                 uint64_t d_shl = d << 1;
-                if (bits_u[j - 1] & 0x8000000000000000)
-                    u_shl |= 1;
-                if (bits_d[j - 1] & 0x8000000000000000)
-                    d_shl |= 1;
+                if (bits_u[j - 1] & 0x8000000000000000) u_shl |= 1;
+                if (bits_d[j - 1] & 0x8000000000000000) d_shl |= 1;
                 bits_dest[j] = (u | u_shl) & (d | d_shl);
             }
         }
-
-        // find runs
-        data_runs.Alloc(h_merge, w);
 
         // Create label '0' for background
         label_solver_.NewLabel();
 
         FindRuns(data_merged.bits, data_flags.bits, h_merge, data_width, data_runs.runs);
-
-        img_labels_ = cv::Mat1i(img_.size(), 0);  // (0-init)
 
         // New version (uses 1-byte per pixel input)
         Run* runs = data_runs.runs;
@@ -159,10 +175,8 @@ class BMRS {
                 int label = label_solver_.GetLabel(runs->label);
 
                 for (int j = start_pos; j < end_pos; j++) {
-                    if (data_u[j >> 6] & (1ull << (j & 0x3F)))
-                        labels_u[j] = label;
-                    if (data_d[j >> 6] & (1ull << (j & 0x3F)))
-                        labels_d[j] = label;
+                    if (data_u[j >> 6] & (1ull << (j & 0x3F))) labels_u[j] = label;
+                    if (data_d[j >> 6] & (1ull << (j & 0x3F))) labels_d[j] = label;
                 }
             }
         }
@@ -180,17 +194,32 @@ class BMRS {
                 }
             }
         }
-
-        data_runs.Dealloc();
-        data_flags.Dealloc();
-        data_merged.Dealloc();
-        data_compressed.Dealloc();
     }
+
+    // template <size_t LEN>
+    // void ArrayToBinary(uint64_t* __restrict dst, const uint8_t* __restrict src) {
+    //     constexpr hw::ScalableTag<uint8_t> d;
+    //     constexpr int N = hw::Lanes(d);
+    //     static_assert(LEN % 64 == 0);
+
+    //     uint8_t* workingPtr = (uint8_t*)dst;
+
+    //     for (auto i = 0; i < LEN; i += N) {
+    //         const auto va = hw::Load(d, src + i);
+    //         workingPtr += hw::StoreMaskBits(d, va != hw::Zero(d), workingPtr);
+    //     }
+    // }
 
    private:
     void InitCompressedData(Data_Compressed& data_compressed) {
         int w(img_.cols);
         int h(img_.rows);
+
+        // constexpr int N = hw::Lanes(d);
+        // for (int i = 0; i < w * h; i += N) {
+        //     uint64_t* mbits = data_compressed[i];
+        //     uint8_t* source = img_.ptr<uchar>(i);
+        // }
 
         for (int i = 0; i < h; i++) {
             uint64_t* mbits = data_compressed[i];
@@ -218,8 +247,7 @@ class BMRS {
             uint64_t obits_final = 0;
             int jbase = w - (w % 64);
             for (int j = 0; j < w % 64; j++) {
-                if (source[jbase + j])
-                    obits_final |= ((uint64_t)1 << j);
+                if (source[jbase + j]) obits_final |= ((uint64_t)1 << j);
             }
             *mbits = obits_final;
         }
@@ -360,8 +388,7 @@ class BMRS {
     }
 
     uint64_t is_connected(const uint64_t* flag_bits, unsigned start, unsigned end) {
-        if (start == end)
-            return flag_bits[start >> 6] & ((uint64_t)1 << (start & 0x0000003F));
+        if (start == end) return flag_bits[start >> 6] & ((uint64_t)1 << (start & 0x0000003F));
 
         unsigned st_base = start >> 6;
         unsigned st_bits = start & 0x0000003F;
@@ -373,51 +400,13 @@ class BMRS {
         }
 
         for (unsigned i = st_base + 1; i < ed_base; i++) {
-            if (flag_bits[i])
-                return true;
+            if (flag_bits[i]) return true;
         }
         uint64_t cutter_st = 0xFFFFFFFFFFFFFFFF << st_bits;
         uint64_t cutter_ed = ~(0xFFFFFFFFFFFFFFFF << ed_bits);
-        if (flag_bits[st_base] & cutter_st)
-            return true;
-        if (flag_bits[ed_base] & cutter_ed)
-            return true;
+        if (flag_bits[st_base] & cutter_st) return true;
+        if (flag_bits[ed_base] & cutter_ed) return true;
         return false;
-    }
-
-   private:
-    void Alloc() {
-        // Memory allocation of the labels solver
-        int w(img_.cols);
-        int h(img_.rows);
-        int h_merge = h / 2 + h % 2;
-
-        // Memory allocation for others
-        img_labels_ = cv::Mat1i(img_.size());
-        data_compressed.Alloc(h, w);
-        data_merged.Alloc(h_merge, w);
-        data_flags.Alloc(h_merge - 1, w);
-        memset(img_labels_.data, 0, img_labels_.dataend - img_labels_.datastart);
-        memset(data_compressed.bits, 0,
-               data_compressed.height * data_compressed.data_width * sizeof(uint64_t));
-        memset(data_merged.bits, 0, data_merged.height * data_merged.data_width * sizeof(uint64_t));
-        memset(data_flags.bits, 0, data_flags.height * data_flags.data_width * sizeof(uint64_t));
-
-        // Run metadata allocation time will be calculated later
-        data_runs.Alloc(h_merge, w);
-
-        memset(img_labels_.data, 0, img_labels_.dataend - img_labels_.datastart);
-        memset(data_compressed.bits, 0,
-               data_compressed.height * data_compressed.data_width * sizeof(uint64_t));
-        memset(data_merged.bits, 0, data_merged.height * data_merged.data_width * sizeof(uint64_t));
-        memset(data_flags.bits, 0, data_flags.height * data_flags.data_width * sizeof(uint64_t));
-    }
-    void Dealloc() {
-        data_runs.Dealloc();
-        data_flags.Dealloc();
-        data_merged.Dealloc();
-        data_compressed.Dealloc();
-        // No free for img_labels_ because it is required at the end of the algorithm
     }
 };
 

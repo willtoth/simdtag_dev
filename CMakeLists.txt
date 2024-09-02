@@ -8,11 +8,15 @@ set(CMAKE_C_COMPILER               "/usr/bin/clang")
 set(CMAKE_CXX_COMPILER             "/usr/bin/clang++")
 set(CMAKE_CXX_STANDARD              20)
 set(CMAKE_CXX_STANDARD_REQUIRED     ON)
-set(CMAKE_CXX_FLAGS_RELEASE        "-Ofast")
+set(CMAKE_CXX_FLAGS_RELEASE        "-O3")
 
 project(evetest)
 find_package(OpenCV REQUIRED)
 find_package(HWY 1.2.0 REQUIRED)
+
+# Common compile options and include directories
+set(COMMON_COMPILE_OPTIONS "-std=c++20" "-O3" "-fno-omit-frame-pointer" "-march=native")
+set(COMMON_INCLUDE_DIRS ${OpenCV_INCLUDE_DIRS} "include" "src")
 
 #########################
 # Fetch all dependencies
@@ -50,7 +54,7 @@ FetchContent_MakeAvailable(flamegraph)
 # apriltag
 #########################
 add_library(apriltag SHARED src/ccl/disjoint_set.cpp)
-target_compile_options(apriltag PUBLIC -std=c++20 -Ofast -mavx2 -fno-omit-frame-pointer)
+target_compile_options(apriltag PUBLIC)
 target_link_libraries(apriltag fmt::fmt hwy ${OpenCV_LIBS})
 target_include_directories(apriltag PRIVATE ${OpenCV_INCLUDE_DIRS} "include")
 
@@ -58,7 +62,7 @@ target_include_directories(apriltag PRIVATE ${OpenCV_INCLUDE_DIRS} "include")
 # evetest
 #########################
 add_executable(evetest main.cpp)
-target_compile_options(evetest PUBLIC -std=c++20 -Ofast -mavx2 -fno-omit-frame-pointer)
+target_compile_options(evetest PUBLIC ${COMMON_COMPILE_OPTIONS})
 target_link_libraries(evetest fmt::fmt hwy ${OpenCV_LIBS} apriltag)
 target_include_directories(evetest PRIVATE ${OpenCV_INCLUDE_DIRS} "include")
 
@@ -71,7 +75,7 @@ add_executable(
   disjoint_set_test
   test/disjoint_set.cpp
 )
-target_compile_options(disjoint_set_test PUBLIC -std=c++20 -Ofast -mavx2 -fno-omit-frame-pointer)
+target_compile_options(disjoint_set_test PUBLIC ${COMMON_COMPILE_OPTIONS})
 target_link_libraries(
   disjoint_set_test
   GTest::gtest_main
@@ -98,7 +102,7 @@ add_executable(
   bmrs
   benchmark/ccl/bmrs.cpp
 )
-target_compile_options(bmrs PUBLIC -std=c++20 -Ofast -mavx2 -save-temps -fno-omit-frame-pointer)
+target_compile_options(bmrs PUBLIC -save-temps ${COMMON_COMPILE_OPTIONS})
 target_include_directories(bmrs PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
 target_link_libraries(bmrs benchmark::benchmark ${OpenCV_LIBS} apriltag)
 target_compile_definitions(bmrs PUBLIC CMAKE_PROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}")

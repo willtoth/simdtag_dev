@@ -111,10 +111,8 @@ class BMRS {
                 uint64_t u_shl = u << 1;
                 uint64_t d = bits_d[j];
                 uint64_t d_shl = d << 1;
-                if (bits_u[j - 1] & 0x8000000000000000)
-                    u_shl |= 1;
-                if (bits_d[j - 1] & 0x8000000000000000)
-                    d_shl |= 1;
+                if (bits_u[j - 1] & 0x8000000000000000) u_shl |= 1;
+                if (bits_d[j - 1] & 0x8000000000000000) d_shl |= 1;
                 bits_dest[j] = (u | u_shl) & (d | d_shl);
             }
         }
@@ -146,10 +144,8 @@ class BMRS {
                 int label = LabelsSolver::GetLabel(runs->label);
 
                 for (int j = start_pos; j < end_pos; j++) {
-                    if (data_u[j >> 6] & (1ull << (j & 0x3F)))
-                        labels_u[j] = label;
-                    if (data_d[j >> 6] & (1ull << (j & 0x3F)))
-                        labels_d[j] = label;
+                    if (data_u[j >> 6] & (1ull << (j & 0x3F))) labels_u[j] = label;
+                    if (data_d[j >> 6] & (1ull << (j & 0x3F))) labels_d[j] = label;
                 }
             }
         }
@@ -206,8 +202,7 @@ class BMRS {
             uint64_t obits_final = 0;
             int jbase = w - (w % 64);
             for (int j = 0; j < w % 64; j++) {
-                if (source[jbase + j])
-                    obits_final |= ((uint64_t)1 << j);
+                if (source[jbase + j]) obits_final |= ((uint64_t)1 << j);
             }
             *mbits = obits_final;
         }
@@ -348,8 +343,7 @@ class BMRS {
     }
 
     uint64_t is_connected(const uint64_t* flag_bits, unsigned start, unsigned end) {
-        if (start == end)
-            return flag_bits[start >> 6] & ((uint64_t)1 << (start & 0x0000003F));
+        if (start == end) return flag_bits[start >> 6] & ((uint64_t)1 << (start & 0x0000003F));
 
         unsigned st_base = start >> 6;
         unsigned st_bits = start & 0x0000003F;
@@ -361,15 +355,12 @@ class BMRS {
         }
 
         for (unsigned i = st_base + 1; i < ed_base; i++) {
-            if (flag_bits[i])
-                return true;
+            if (flag_bits[i]) return true;
         }
         uint64_t cutter_st = 0xFFFFFFFFFFFFFFFF << st_bits;
         uint64_t cutter_ed = ~(0xFFFFFFFFFFFFFFFF << ed_bits);
-        if (flag_bits[st_base] & cutter_st)
-            return true;
-        if (flag_bits[ed_base] & cutter_ed)
-            return true;
+        if (flag_bits[st_base] & cutter_st) return true;
+        if (flag_bits[ed_base] & cutter_ed) return true;
         return false;
     }
 

@@ -19,32 +19,25 @@ std::string& GetImageFilename() {
 
 static void BM_Bmrs(benchmark::State& state) {
     cv::Mat1b thresholdedOutput = cv::imread(GetImageFilename(), cv::IMREAD_GRAYSCALE);
+    apriltag::BMRS ccl{thresholdedOutput};
 
     for (auto _ : state) {
-        state.PauseTiming();
-        cv::Mat1i labels;
-        cv::Mat1b testImage = thresholdedOutput;
-        apriltag::BMRS ccl{testImage, labels};
-        state.ResumeTiming();
-
         ccl.LocalPerformLabeling();
     }
 }
 
 static void BM_YacclabBmrs(benchmark::State& state) {
     cv::Mat1b thresholdedOutput = cv::imread(GetImageFilename(), cv::IMREAD_GRAYSCALE);
+    cv::Mat1i labels;
+    BMRS<UF> ccl{thresholdedOutput, labels};
 
     for (auto _ : state) {
-        state.PauseTiming();
-        cv::Mat1i labels;
-        cv::Mat1b testImage = thresholdedOutput;
-        BMRS<UF> ccl{testImage, labels};
-        state.ResumeTiming();
-
         ccl.YLPerformLabeling();
     }
 }
 
+BENCHMARK(BM_YacclabBmrs);
+BENCHMARK(BM_Bmrs);
 BENCHMARK(BM_YacclabBmrs);
 BENCHMARK(BM_Bmrs);
 
