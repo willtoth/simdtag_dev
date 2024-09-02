@@ -1,6 +1,15 @@
-#include "ccl_sample_test.h"
+#include "ccl_samples.h"
 
 namespace CclExpectedOuputs {
+
+// Files should be in assets/yacclab/test/<testname>.png
+std::string GetImage(const char* testname) {
+    std::string filename = std::string(CMAKE_PROJECT_SOURCE_DIR) +
+                           std::string("/assets/yacclab/test/") + std::string(testname) +
+                           std::string(".png");
+    return filename;
+}
+
 const std::map<const char*, std::vector<int>> TestCases{
         {"test_8connectivity_maxlabelEE",
          {1,  0, 2,  0, 3,  0, 4,  0, 5,  0, 6,  0, 7,  0, 8,  0, 0,  0, 0,  0, 0,  0, 0,  0, 0,  0,

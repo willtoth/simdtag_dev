@@ -75,7 +75,7 @@ if(WITH_TESTS)
     enable_testing()
     include(GoogleTest)
 
-    file(GLOB_RECURSE test_source test/*_test.cpp)
+    file(GLOB_RECURSE test_source test/*_test.cpp test/ccl_samples.cpp)
 
     add_executable(apriltag_test ${test_source})
     target_compile_options(apriltag_test PUBLIC ${COMMON_COMPILE_OPTIONS})

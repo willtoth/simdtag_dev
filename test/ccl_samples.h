@@ -5,5 +5,6 @@
 #include "ccl/bmrs.h"
 
 namespace CclExpectedOuputs {
-const std::map<const char*, std::vector<int>> TestCases;
+extern const std::map<const char*, std::vector<int>> TestCases;
+std::string GetImage(const char* testname);
 }  // namespace CclExpectedOuputs
