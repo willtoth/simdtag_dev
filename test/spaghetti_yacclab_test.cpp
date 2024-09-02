@@ -1,5 +1,3 @@
-#include "ccl/bmrs.h"
-
 #include <fmt/format.h>
 #include <gtest/gtest.h>
 
@@ -10,6 +8,7 @@
 #include <string>
 
 #include "ccl_samples_test.h"
+#include "yacclab/spaghetti.h"
 
 namespace {
 std::string GetImage(const char* testname) {
@@ -20,19 +19,15 @@ std::string GetImage(const char* testname) {
 }
 }  // namespace
 
-TEST(Bmrs, edge_cases) {
+TEST(YacclabSpaghetti, edge_cases) {
     for (auto const& [test_name, expected_value] : CclExpectedOuputs::TestCases) {
         cv::Mat1b image = cv::imread(GetImage(test_name), cv::IMREAD_GRAYSCALE);
-        apriltag::BMRS ccl{image};
+        cv::Mat1i labels;
+        Spaghetti<UFPC> labeler{image, labels};
 
-        ccl.PerformLabeling();
-        cv::Mat1i labels = *ccl.Labels();
+        labeler.PerformSPLabeling();
 
         EXPECT_EQ(labels.rows * labels.cols, expected_value.size()) << test_name;
-
-        if (labels.rows * labels.cols != expected_value.size()) {
-            continue;
-        }
 
         bool is_equal = true;
         for (int i = 0; i < expected_value.size(); i++) {

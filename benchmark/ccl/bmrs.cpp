@@ -7,6 +7,7 @@
 
 #include "yacclab/bmrs.h"
 #include "yacclab/labels_solver.h"
+#include "yacclab/spaghetti.h"
 
 unsigned* UF::P_;
 unsigned UF::length_;
@@ -36,9 +37,21 @@ static void BM_YacclabBmrs(benchmark::State& state) {
     }
 }
 
+static void BM_YacclabSpaghetti(benchmark::State& state) {
+    cv::Mat1b thresholdedOutput = cv::imread(GetImageFilename(), cv::IMREAD_GRAYSCALE);
+    cv::Mat1i labels;
+    Spaghetti<UFPC> ccl{thresholdedOutput, labels};
+
+    for (auto _ : state) {
+        ccl.PerformSPLabeling();
+    }
+}
+
 BENCHMARK(BM_YacclabBmrs);
 BENCHMARK(BM_Bmrs);
+BENCHMARK(BM_YacclabSpaghetti);
 BENCHMARK(BM_YacclabBmrs);
 BENCHMARK(BM_Bmrs);
+BENCHMARK(BM_YacclabSpaghetti);
 
 BENCHMARK_MAIN();
