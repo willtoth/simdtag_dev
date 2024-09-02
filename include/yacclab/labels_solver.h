@@ -46,7 +46,8 @@ class UF {
             j = P_[j];
         }
 
-        if (i < j) return P_[j] = i;
+        if (i < j)
+            return P_[j] = i;
         return P_[i] = j;
     }
 
@@ -134,7 +135,6 @@ class UFPC {
    private:
     static unsigned *P_;
     static unsigned length_;
-    static MemVector<unsigned> mem_P_;
 };
 
 // Interleaved Rem algorithm with SPlicing (SP) as in:
