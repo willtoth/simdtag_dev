@@ -24,7 +24,7 @@ static void BM_Bmrs(benchmark::State& state) {
         state.PauseTiming();
         cv::Mat1i labels;
         cv::Mat1b testImage = thresholdedOutput;
-        apriltag::BMRS ccl{testImage, labels};
+        apriltag::BMRS<1446, 902> ccl{testImage, labels};
         state.ResumeTiming();
 
         ccl.LocalPerformLabeling();
@@ -45,7 +45,7 @@ static void BM_YacclabBmrs(benchmark::State& state) {
     }
 }
 
-BENCHMARK(BM_YacclabBmrs);
 BENCHMARK(BM_Bmrs);
+BENCHMARK(BM_YacclabBmrs);
 
 BENCHMARK_MAIN();
