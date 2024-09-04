@@ -5,9 +5,9 @@
 #include <opencv2/opencv.hpp>
 #include <string>
 
-#include "yacclab/bmrs.h"
-#include "yacclab/labels_solver.h"
-#include "yacclab/spaghetti.h"
+#include "third_party/yacclab/bmrs.h"
+#include "third_party/yacclab/labels_solver.h"
+#include "third_party/yacclab/spaghetti.h"
 
 unsigned* UF::P_;
 unsigned UF::length_;
@@ -49,9 +49,9 @@ static void BM_YacclabSpaghetti(benchmark::State& state) {
 
 BENCHMARK(BM_YacclabBmrs);
 BENCHMARK(BM_Bmrs);
-BENCHMARK(BM_YacclabSpaghetti);
-BENCHMARK(BM_YacclabBmrs);
-BENCHMARK(BM_Bmrs);
-BENCHMARK(BM_YacclabSpaghetti);
+// BENCHMARK(BM_YacclabSpaghetti);
+// BENCHMARK(BM_YacclabBmrs);
+// BENCHMARK(BM_Bmrs);
+// BENCHMARK(BM_YacclabSpaghetti);
 
 BENCHMARK_MAIN();

@@ -8,7 +8,7 @@
 #include <string>
 
 #include "ccl_samples.h"
-#include "yacclab/bmrs.h"
+#include "third_party/yacclab/bmrs.h"
 
 unsigned* UF::P_;
 unsigned UF::length_;

@@ -47,11 +47,6 @@ class BMRS {
         void Alloc(int _height, int _width) {
             height = _height, width = _width;
             data_width = _width / 64 + 1;
-
-            // // Add extra to the end so SIMD is always width aligned, assume max 512bits
-            // if (data_width % 64) {
-            //     data_width = data_width + (64 - (data_width % 64));
-            // }
             bits = new uint64_t[height * data_width];
         }
         void Dealloc() {

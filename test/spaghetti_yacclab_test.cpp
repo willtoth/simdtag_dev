@@ -8,7 +8,7 @@
 #include <string>
 
 #include "ccl_samples.h"
-#include "yacclab/spaghetti.h"
+#include "third_party/yacclab/spaghetti.h"
 
 TEST(YacclabSpaghetti, edge_cases) {
     EXPECT_TRUE(CclExpectedOuputs::TestCases.size() >= 17);

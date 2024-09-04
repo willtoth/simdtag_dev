@@ -124,12 +124,9 @@ set(FLAMEGRAPH_DIR "${flamegraph_SOURCE_DIR}")
 set(FLAMEGRAPH_SCRIPT "${FLAMEGRAPH_DIR}/flamegraph.pl")
 
 add_custom_target(flamegraph
-    COMMAND ${CMAKE_COMMAND} -E echo "Running benchmark and generating flame graph..."
-    COMMAND perf record -F 99 -a -g -- ${CMAKE_BINARY_DIR}/bmrs
-    COMMAND perf script | ${FLAMEGRAPH_DIR}/stackcollapse-perf.pl > out.perf-folded
-    COMMAND ${FLAMEGRAPH_SCRIPT} out.perf-folded > flamegraph.svg
-    COMMAND ${CMAKE_COMMAND} -E echo "Flame graph generated: ${CMAKE_BINARY_DIR}/flamegraph.svg"
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/flamegraph
+    # COMMAND ${CMAKE_COMMAND} -E echo "Running Flamegraph script..."
+    COMMAND bash ${CMAKE_SOURCE_DIR}/script/flamegraph.sh ${FLAMEGRAPH_DIR} ${CMAKE_BINARY_DIR} ${CMAKE_BINARY_DIR}/bmrs
     DEPENDS bmrs
-    COMMENT "Generating flame graph for bmrs benchmark"
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    COMMENT "Running perf and generating a flame graph"
 )

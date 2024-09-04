@@ -4,7 +4,7 @@
 
 #include <cstdlib>
 
-#include "yacclab/labels_solver.h"
+#include "third_party/yacclab/labels_solver.h"
 
 static constexpr int N = 100000;
 static constexpr int NUM_SET_TO_MERGE = 100;
