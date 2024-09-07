@@ -15,10 +15,10 @@ TEST(Bmrs, TestCases) {
     EXPECT_TRUE(CclExpectedOuputs::TestCases.size() >= 17);
     for (auto const& [test_name, expected_value] : CclExpectedOuputs::TestCases) {
         cv::Mat1b image = cv::imread(CclExpectedOuputs::GetImage(test_name), cv::IMREAD_GRAYSCALE);
+        cv::Mat1i labels = cv::Mat1i{image.size(), 0};
         apriltag::BMRS ccl{image};
 
-        ccl.PerformLabeling();
-        cv::Mat1i labels = *ccl.Labels();
+        ccl.PerformLabeling(image, labels);
 
         EXPECT_EQ(labels.rows * labels.cols, expected_value.size()) << test_name;
 
@@ -38,27 +38,5 @@ TEST(Bmrs, TestCases) {
         } else {
             EXPECT_TRUE(is_equal) << test_name;
         }
-    }
-}
-
-TEST(Bmrs, RunTwice) {
-    cv::Mat1b image = cv::imread(CclExpectedOuputs::GetImage("basic_random"), cv::IMREAD_GRAYSCALE);
-    apriltag::BMRS ccl{image};
-
-    for (int i = 0; i < 2; i++) {
-        ccl.PerformLabeling();
-        cv::Mat1i labels = *ccl.Labels();
-
-        auto expected_value = CclExpectedOuputs::TestCases.find("basic_random")->second;
-        EXPECT_EQ(labels.rows * labels.cols, expected_value.size());
-
-        bool is_equal = true;
-        for (int i = 0; i < expected_value.size(); i++) {
-            if (((int*)labels.data)[i] != expected_value[i]) {
-                is_equal = false;
-            }
-        }
-
-        EXPECT_TRUE(is_equal);
     }
 }

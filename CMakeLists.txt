@@ -11,6 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED     ON)
 set(CMAKE_CXX_FLAGS_RELEASE        "-O3")
 
 option(WITH_TESTS "Build unit tests" ON)
+option(WITH_TRACING "Build with tracy enabled for profiling" OFF)
 
 project(evetest)
 find_package(OpenCV REQUIRED)
@@ -19,6 +20,8 @@ find_package(HWY 1.2.0 REQUIRED)
 # Common compile options and include directories
 set(COMMON_COMPILE_OPTIONS "-std=c++20" "-O3" "-fno-omit-frame-pointer" "-march=native")
 set(COMMON_INCLUDE_DIRS ${OpenCV_INCLUDE_DIRS} "include" "src")
+set(COMMON_LINK_TARGETS fmt::fmt hwy ${OpenCV_LIBS})
+set(COMMON_TARGET_DEFINES)
 
 #########################
 # Fetch all dependencies
@@ -52,20 +55,42 @@ FetchContent_Declare(
   GIT_TAG        cd9ee4c4449775a2f867acf31c84b7fe4b132ad5)
 FetchContent_MakeAvailable(flamegraph)
 
+FetchContent_Declare(
+  tracy
+  GIT_REPOSITORY https://github.com/wolfpld/tracy.git
+  GIT_TAG master
+  GIT_SHALLOW TRUE
+  GIT_PROGRESS TRUE
+)
+FetchContent_MakeAvailable(tracy)
+
+#########################
+# Tracy
+#########################
+if(WITH_TRACING)
+    set(COMMON_LINK_TARGETS ${COMMON_LINK_TARGETS} Tracy::TracyClient)
+    set(COMMON_TARGET_DEFINES TRACY_ENABLE TRACY_VERBOSE TRACY_NO_EXIT)
+    set(TRACY_SOURCE ${tracy_SOURCE_DIR}/public/TracyClient.cpp)
+    add_subdirectory(${tracy_SOURCE_DIR}/profiler ${CMAKE_BINARY_DIR}/tracy)
+endif()
+
 #########################
 # apriltag
 #########################
-add_library(apriltag SHARED src/ccl/disjoint_set.cpp)
+add_library(apriltag STATIC src/ccl/disjoint_set.cpp src/ccl/bmrs.cpp)
 target_compile_options(apriltag PUBLIC)
-target_link_libraries(apriltag fmt::fmt hwy ${OpenCV_LIBS})
+target_compile_options(apriltag PUBLIC ${COMMON_COMPILE_OPTIONS})
 target_include_directories(apriltag PRIVATE ${OpenCV_INCLUDE_DIRS} "include")
+target_link_libraries(apriltag ${COMMON_LINK_TARGETS})
+target_compile_definitions(apriltag PUBLIC ${COMMON_TARGET_DEFINES})
 
 #########################
 # evetest
 #########################
 add_executable(evetest main.cpp)
 target_compile_options(evetest PUBLIC ${COMMON_COMPILE_OPTIONS})
-target_link_libraries(evetest fmt::fmt hwy ${OpenCV_LIBS} apriltag)
+target_link_libraries(evetest ${COMMON_LINK_TARGETS} apriltag)
+target_compile_definitions(evetest PUBLIC ${COMMON_TARGET_DEFINES})
 target_include_directories(evetest PRIVATE ${OpenCV_INCLUDE_DIRS} "include")
 
 #########################
@@ -79,16 +104,12 @@ if(WITH_TESTS)
 
     add_executable(apriltag_test ${test_source})
     target_compile_options(apriltag_test PUBLIC ${COMMON_COMPILE_OPTIONS})
-    target_link_libraries(
-        apriltag_test
-        GTest::gtest_main
-        apriltag
-    )
+    target_link_libraries(apriltag_test ${COMMON_LINK_TARGETS} GTest::gtest_main apriltag)
+    target_compile_definitions(apriltag_test PUBLIC ${COMMON_TARGET_DEFINES})
     target_include_directories(apriltag_test PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
     target_compile_definitions(apriltag_test PUBLIC CMAKE_PROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 
     gtest_discover_tests(apriltag_test)
-
 endif()
 
 #########################
@@ -100,15 +121,17 @@ add_executable(
   benchmark/ccl/disjoint_set.cpp
 )
 target_include_directories(disjoint_set_bench PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
-target_link_libraries(disjoint_set_bench benchmark::benchmark ${OpenCV_LIBS} apriltag)
+target_link_libraries(disjoint_set_bench ${COMMON_LINK_TARGETS} apriltag benchmark::benchmark)
+target_compile_definitions(disjoint_set_bench PUBLIC ${COMMON_TARGET_DEFINES})
 
 add_executable(
   bmrs
   benchmark/ccl/bmrs.cpp
+  ${TRACY_SOURCE}
 )
 target_compile_options(bmrs PUBLIC -save-temps ${COMMON_COMPILE_OPTIONS})
 target_include_directories(bmrs PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
-target_link_libraries(bmrs benchmark::benchmark ${OpenCV_LIBS} apriltag)
+target_link_libraries(bmrs benchmark::benchmark ${COMMON_LINK_TARGETS} apriltag)
 target_compile_definitions(bmrs PUBLIC CMAKE_PROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 
 add_custom_target(assembly
