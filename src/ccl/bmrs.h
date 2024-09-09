@@ -12,6 +12,8 @@
 
 #pragma once
 
+#include <fmt/format.h>
+
 #include <cstdint>
 #include <opencv2/core.hpp>
 
@@ -31,10 +33,20 @@ class BMRS {
         void Alloc(int _height, int _width) {
             height = _height, width = _width;
             data_width = _width / 64 + 1;
+
+            // Align to 512 bits for widest SIMD
             bits = new uint64_t[height * data_width];
         }
         void Dealloc() {
             delete[] bits;
+        }
+        void Print() {
+            for (int i = 0; i < height; i++) {
+                for (int j = 0; j < data_width; j++) {
+                    fmt::print("{:064b}", *(bits + data_width * i + j));
+                }
+                fmt::println("");
+            }
         }
     };
     struct Run {

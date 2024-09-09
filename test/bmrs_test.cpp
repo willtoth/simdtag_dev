@@ -5,15 +5,21 @@
 
 #include <array>
 #include <cstring>
+#include <iostream>
 #include <map>
 #include <opencv2/opencv.hpp>
 #include <string>
 
+#include "apriltag/memory_pool.h"
 #include "ccl_samples.h"
 
-TEST(Bmrs, TestCases) {
+TEST(Bmrs, TestCaseCount) {
     EXPECT_TRUE(CclExpectedOuputs::TestCases.size() >= 17);
+}
+
+TEST(Bmrs, TestCases) {
     for (auto const& [test_name, expected_value] : CclExpectedOuputs::TestCases) {
+        std::cout << "name:" << test_name << std::endl;
         cv::Mat1b image = cv::imread(CclExpectedOuputs::GetImage(test_name), cv::IMREAD_GRAYSCALE);
         cv::Mat1i labels = cv::Mat1i{image.size(), 0};
         apriltag::BMRS ccl{image};

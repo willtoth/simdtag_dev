@@ -16,6 +16,7 @@
 #include <hwy/highway.h>
 #include <immintrin.h>
 
+#include <iostream>
 #include <opencv2/core.hpp>
 
 #include "bit_scan_forward.h"
@@ -162,11 +163,20 @@ void BMRS::InitCompressedData(cv::Mat1b const& input, Data_Compressed& data_comp
     int w(w_);
     int h(h_);
 
+    // constexpr hw::ScalableTag<uint8_t> d;
     // constexpr int N = hw::Lanes(d);
+    // uint8_t* mbits = (uint8_t*)data_compressed.bits;
+    // unsigned long long orig = (unsigned long long)mbits;
+    // uint8_t* source = input.data;
     // for (int i = 0; i < w * h; i += N) {
-    //     uint64_t* mbits = data_compressed[i];
-    //     uint8_t* source = input.ptr<uchar>(i);
+    //     const auto va = hw::Load(d, source + i);
+    //     mbits += hw::StoreMaskBits(d, va != hw::Zero(d), mbits);
     // }
+
+    // std::cout << "HERE!!" << std::endl;
+    // data_compressed.Show();
+
+    // std::cout << std::endl << " ============================= " << std::endl;
 
     for (int i = 0; i < h; i++) {
         uint64_t* mbits = data_compressed[i];
@@ -198,6 +208,13 @@ void BMRS::InitCompressedData(cv::Mat1b const& input, Data_Compressed& data_comp
         }
         *mbits = obits_final;
     }
+
+    // data_compressed.Show();
+    // std::cout << std::endl
+    //           << " ----------------- " << std::endl
+    //           << std::endl
+    //           << std::endl
+    //           << std::endl;
 }
 
 void BMRS::FindRuns(const uint64_t* bits_start, const uint64_t* bits_flag, int height,

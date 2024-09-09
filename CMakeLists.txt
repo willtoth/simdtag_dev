@@ -18,7 +18,7 @@ find_package(OpenCV REQUIRED)
 find_package(HWY 1.2.0 REQUIRED)
 
 # Common compile options and include directories
-set(COMMON_COMPILE_OPTIONS "-std=c++20" "-O3" "-fno-omit-frame-pointer" "-march=native")
+set(COMMON_COMPILE_OPTIONS "-std=c++20" "-fno-omit-frame-pointer" "-march=native")
 set(COMMON_INCLUDE_DIRS ${OpenCV_INCLUDE_DIRS} "include" "src")
 set(COMMON_LINK_TARGETS fmt::fmt hwy ${OpenCV_LIBS})
 set(COMMON_TARGET_DEFINES)

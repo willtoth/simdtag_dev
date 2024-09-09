@@ -33,48 +33,6 @@ static void BM_Bmrs(benchmark::State& state) {
     }
 }
 
-template <size_t N>
-class AutoZerodMatPool {
-    using T = cv::Mat1i;
-
-   public:
-    AutoZerodMatPool(cv::Size size) : run_thread_(true) {
-        for (int i = 0; i < N; i++) {
-            clean_pool_.push(std::make_unique<cv::Mat1i>(size));
-        }
-
-        thread_ = std::thread{[this]() { this->ThreadRunner(); }};
-    }
-
-    ~AutoZerodMatPool() {
-        run_thread_ = false;
-        thread_.join();
-    }
-
-    std::unique_ptr<T> Aquire() {
-        return std::move(clean_pool_.pop());
-    }
-
-    void Release(std::unique_ptr<T>&& ptr) {
-        dirty_pool_.push(std::move(ptr));
-    }
-
-   private:
-    void ThreadRunner() {
-        while (run_thread_) {
-            std::unique_ptr<T> value = std::move(dirty_pool_.pop());
-            *value = 0;
-            clean_pool_.push(std::move(value));
-        }
-    }
-
-    apriltag::FixedSizeAtomicStack<std::unique_ptr<T>, N> dirty_pool_;
-    apriltag::FixedSizeAtomicStack<std::unique_ptr<T>, N> clean_pool_;
-
-    std::thread thread_;
-    std::atomic_bool run_thread_;
-};
-
 static void BM_BmrsThreadSwap(benchmark::State& state) {
     cv::Mat1b thresholdedOutput = cv::imread(GetImageFilename(), cv::IMREAD_GRAYSCALE);
     apriltag::AutoZerodMatPool<4> matPool(thresholdedOutput.size());
