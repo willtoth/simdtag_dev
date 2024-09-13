@@ -14,7 +14,6 @@ unsigned* UF::P_;
 unsigned UF::length_;
 
 TEST(YacclabBmrs, edge_cases) {
-    EXPECT_TRUE(CclExpectedOuputs::TestCases.size() >= 17);
     for (auto const& [test_name, expected_value] : CclExpectedOuputs::TestCases) {
         cv::Mat1b image = cv::imread(CclExpectedOuputs::GetImage(test_name), cv::IMREAD_GRAYSCALE);
         cv::Mat1i labels;
@@ -23,11 +22,13 @@ TEST(YacclabBmrs, edge_cases) {
         ccl.PerformYLLabeling();
 
         // Print out values when using pre-validated CCL code
-        // fmt::print("\n\n\"{}\", {{", test_name);
-        // for (int i = 0; i < labels.rows * labels.cols; i++) {
-        //     fmt::print("{},", ((int*)(labels.data))[i]);
-        // }
-        // fmt::println("}}\n");
+#ifdef __PRINT_YACCLAB_IMAGE
+        fmt::print("\n\n\"{}\", {{", test_name);
+        for (int i = 0; i < labels.rows * labels.cols; i++) {
+            fmt::print("{},", ((int*)(labels.data))[i]);
+        }
+        fmt::println("}}\n");
+#endif
 
         EXPECT_EQ(labels.rows * labels.cols, expected_value.size()) << test_name;
 

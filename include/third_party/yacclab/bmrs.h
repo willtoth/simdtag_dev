@@ -179,26 +179,75 @@ class BMRS {
         for (int i = 0; i < h; i++) {
             uint64_t* mbits = data_compressed[i];
             uchar* source = img_.ptr<uchar>(i);
-
             for (int j = 0; j < w >> 6; j++) {
                 uchar* base = source + (j << 6);
-
-                // Load 64 pixels at once using AVX2
-                __m256i pixel_chunk1 = _mm256_loadu_si256((__m256i*)base);
-                __m256i pixel_chunk2 = _mm256_loadu_si256((__m256i*)(base + 32));
-
-                // Compare each byte with zero to generate a mask
-                __m256i mask1 = _mm256_cmpgt_epi8(pixel_chunk1, _mm256_setzero_si256());
-                __m256i mask2 = _mm256_cmpgt_epi8(pixel_chunk2, _mm256_setzero_si256());
-
-                // Compress the result into 64-bit integers
-                uint32_t lower_bits = _mm256_movemask_epi8(mask1);
-                uint32_t upper_bits = _mm256_movemask_epi8(mask2);
-                uint64_t obits = ((uint64_t)upper_bits << 32) | lower_bits;
-
-                *mbits++ = obits;
+                uint64_t obits = 0;
+                if (base[0]) obits |= 0x0000000000000001;
+                if (base[1]) obits |= 0x0000000000000002;
+                if (base[2]) obits |= 0x0000000000000004;
+                if (base[3]) obits |= 0x0000000000000008;
+                if (base[4]) obits |= 0x0000000000000010;
+                if (base[5]) obits |= 0x0000000000000020;
+                if (base[6]) obits |= 0x0000000000000040;
+                if (base[7]) obits |= 0x0000000000000080;
+                if (base[8]) obits |= 0x0000000000000100;
+                if (base[9]) obits |= 0x0000000000000200;
+                if (base[10]) obits |= 0x0000000000000400;
+                if (base[11]) obits |= 0x0000000000000800;
+                if (base[12]) obits |= 0x0000000000001000;
+                if (base[13]) obits |= 0x0000000000002000;
+                if (base[14]) obits |= 0x0000000000004000;
+                if (base[15]) obits |= 0x0000000000008000;
+                if (base[16]) obits |= 0x0000000000010000;
+                if (base[17]) obits |= 0x0000000000020000;
+                if (base[18]) obits |= 0x0000000000040000;
+                if (base[19]) obits |= 0x0000000000080000;
+                if (base[20]) obits |= 0x0000000000100000;
+                if (base[21]) obits |= 0x0000000000200000;
+                if (base[22]) obits |= 0x0000000000400000;
+                if (base[23]) obits |= 0x0000000000800000;
+                if (base[24]) obits |= 0x0000000001000000;
+                if (base[25]) obits |= 0x0000000002000000;
+                if (base[26]) obits |= 0x0000000004000000;
+                if (base[27]) obits |= 0x0000000008000000;
+                if (base[28]) obits |= 0x0000000010000000;
+                if (base[29]) obits |= 0x0000000020000000;
+                if (base[30]) obits |= 0x0000000040000000;
+                if (base[31]) obits |= 0x0000000080000000;
+                if (base[32]) obits |= 0x0000000100000000;
+                if (base[33]) obits |= 0x0000000200000000;
+                if (base[34]) obits |= 0x0000000400000000;
+                if (base[35]) obits |= 0x0000000800000000;
+                if (base[36]) obits |= 0x0000001000000000;
+                if (base[37]) obits |= 0x0000002000000000;
+                if (base[38]) obits |= 0x0000004000000000;
+                if (base[39]) obits |= 0x0000008000000000;
+                if (base[40]) obits |= 0x0000010000000000;
+                if (base[41]) obits |= 0x0000020000000000;
+                if (base[42]) obits |= 0x0000040000000000;
+                if (base[43]) obits |= 0x0000080000000000;
+                if (base[44]) obits |= 0x0000100000000000;
+                if (base[45]) obits |= 0x0000200000000000;
+                if (base[46]) obits |= 0x0000400000000000;
+                if (base[47]) obits |= 0x0000800000000000;
+                if (base[48]) obits |= 0x0001000000000000;
+                if (base[49]) obits |= 0x0002000000000000;
+                if (base[50]) obits |= 0x0004000000000000;
+                if (base[51]) obits |= 0x0008000000000000;
+                if (base[52]) obits |= 0x0010000000000000;
+                if (base[53]) obits |= 0x0020000000000000;
+                if (base[54]) obits |= 0x0040000000000000;
+                if (base[55]) obits |= 0x0080000000000000;
+                if (base[56]) obits |= 0x0100000000000000;
+                if (base[57]) obits |= 0x0200000000000000;
+                if (base[58]) obits |= 0x0400000000000000;
+                if (base[59]) obits |= 0x0800000000000000;
+                if (base[60]) obits |= 0x1000000000000000;
+                if (base[61]) obits |= 0x2000000000000000;
+                if (base[62]) obits |= 0x4000000000000000;
+                if (base[63]) obits |= 0x8000000000000000;
+                *mbits = obits, mbits++;
             }
-
             uint64_t obits_final = 0;
             int jbase = w - (w % 64);
             for (int j = 0; j < w % 64; j++) {
@@ -276,8 +325,7 @@ class BMRS {
                 unsigned short end_pos = short(basepos + bitpos);
 
                 // Skip upper runs end before this slice starts
-                for (; runs_up->end_pos < start_pos; runs_up++)
-                    ;
+                for (; runs_up->end_pos < start_pos; runs_up++);
 
                 // No upper run meets this
                 if (runs_up->start_pos > end_pos) {

@@ -22,33 +22,6 @@
 namespace apriltag {
 
 class BMRS {
-    struct Data_Compressed {
-        uint64_t* bits;
-        int height;
-        int width;
-        int data_width;
-        uint64_t* operator[](uint64_t row) {
-            return bits + data_width * row;
-        }
-        void Alloc(int _height, int _width) {
-            height = _height, width = _width;
-            data_width = _width / 64 + 1;
-
-            // Align to 512 bits for widest SIMD
-            bits = new uint64_t[height * data_width];
-        }
-        void Dealloc() {
-            delete[] bits;
-        }
-        void Print() {
-            for (int i = 0; i < height; i++) {
-                for (int j = 0; j < data_width; j++) {
-                    fmt::print("{:064b}", *(bits + data_width * i + j));
-                }
-                fmt::println("");
-            }
-        }
-    };
     struct Run {
         unsigned short start_pos;
         unsigned short end_pos;
@@ -74,14 +47,10 @@ class BMRS {
     void PerformLabeling(cv::Mat1b const& input, cv::Mat1i& labels);
 
    private:
-    void InitCompressedData(cv::Mat1b const& input, Data_Compressed& data_compressed);
     void FindRuns(const uint64_t* bits_start, const uint64_t* bits_flag, int height, int data_width,
-                  Run* runs);
+                  int data_stride, Run* runs);
     uint64_t is_connected(const uint64_t* flag_bits, unsigned start, unsigned end);
 
-    Data_Compressed data_compressed;
-    Data_Compressed data_merged;
-    Data_Compressed data_flags;
     Runs data_runs;
     DisjointSet label_solver_;
     int w_, h_;

@@ -55,19 +55,19 @@ FetchContent_Declare(
   GIT_TAG        cd9ee4c4449775a2f867acf31c84b7fe4b132ad5)
 FetchContent_MakeAvailable(flamegraph)
 
-FetchContent_Declare(
-  tracy
-  GIT_REPOSITORY https://github.com/wolfpld/tracy.git
-  GIT_TAG master
-  GIT_SHALLOW TRUE
-  GIT_PROGRESS TRUE
-)
-FetchContent_MakeAvailable(tracy)
-
 #########################
 # Tracy
 #########################
 if(WITH_TRACING)
+    FetchContent_Declare(
+        tracy
+        GIT_REPOSITORY https://github.com/wolfpld/tracy.git
+        GIT_TAG master
+        GIT_SHALLOW TRUE
+        GIT_PROGRESS TRUE
+    )
+    FetchContent_MakeAvailable(tracy)
+
     set(COMMON_LINK_TARGETS ${COMMON_LINK_TARGETS} Tracy::TracyClient)
     set(COMMON_TARGET_DEFINES TRACY_ENABLE TRACY_VERBOSE TRACY_NO_EXIT)
     set(TRACY_SOURCE ${tracy_SOURCE_DIR}/public/TracyClient.cpp)
