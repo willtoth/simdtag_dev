@@ -67,8 +67,8 @@ static void BM_YacclabSpaghetti(benchmark::State& state) {
 
 BENCHMARK(BM_YacclabBmrs);
 BENCHMARK(BM_Bmrs);
-//  BENCHMARK(BM_BmrsThreadSwap);
-//  BENCHMARK(BM_YacclabSpaghetti);
+BENCHMARK(BM_BmrsThreadSwap);
+BENCHMARK(BM_YacclabSpaghetti);
 //  BENCHMARK(BM_YacclabBmrs);
 //  BENCHMARK(BM_Bmrs);
 //  BENCHMARK(BM_YacclabSpaghetti);

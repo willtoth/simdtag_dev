@@ -18,13 +18,13 @@ HWY_BEFORE_NAMESPACE();
 namespace HWY_NAMESPACE {
 
 inline void __ToBinaryAlignedPadded(uint64_t* __restrict dst, const uint8_t* __restrict src,
-                                    size_t src_len) {
+                                    size_t len_bytes) {
     constexpr hw::ScalableTag<uint8_t> d;
     constexpr int N = hw::Lanes(d);
 
     uint8_t* ptr = (uint8_t*)dst;
 
-    for (auto i = 0; i < src_len; i += N) {
+    for (auto i = 0; i < len_bytes; i += N) {
         const auto va = hw::LoadU(d, src + i);  // Can't assume source is aligned
         ptr += hw::StoreMaskBits(d, va != hw::Zero(d), ptr);
     }
@@ -54,10 +54,11 @@ class PackedBinaryImage {
     }
 
     PackedBinaryImage(cv::Mat1b const& image) : PackedBinaryImage(image.rows, image.cols) {
+        assert(image.isContinuous());
         uint64_t mask = 0xFFFFFFFFFFFFFFFF >> (64 - (width_ % 64));
         for (int i = 0; i < height_; i++) {
             uint64_t* dst = bits_ + double_word_stride_ * i;
-            HWY_NAMESPACE::__ToBinaryAlignedPadded(dst, image.ptr<uint8_t>(i), double_word_width_);
+            HWY_NAMESPACE::__ToBinaryAlignedPadded(dst, image.ptr<uint8_t>(i), image.cols);
 
             // Bits that overhang the 64-bit boundary should have the remaining bits set to 0
             // e.g. a 32px wide image should have the top 32 bits set to 0
