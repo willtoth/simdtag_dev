@@ -27,6 +27,27 @@ namespace hw = hwy::HWY_NAMESPACE;
 
 namespace apriltag {
 
+HWY_BEFORE_NAMESPACE();
+namespace HWY_NAMESPACE {
+
+inline void __MergeRows(uint64_t* __restrict dst, uint64_t* __restrict rowA,
+                        const uint64_t* __restrict rowB, size_t double_word_width) {
+    constexpr hw::ScalableTag<uint8_t> d;
+    constexpr int N = hw::Lanes(d);
+
+    uint8_t* ptr = (uint8_t*)dst;
+
+    for (auto i = 0; i < double_word_width * 8; i += N) {
+        const auto va = hw::Load(d, (uint8_t*)rowA);
+        const auto vb = hw::Load(d, (uint8_t*)rowB);
+        hw::Store(va | vb, d, (uint8_t*)dst);
+    }
+}
+
+// NOLINTNEXTLINE(google-readability-namespace-comments)
+}  // namespace HWY_NAMESPACE
+HWY_AFTER_NAMESPACE();
+
 namespace {
 template <size_t CONNECTIVITY>
 static constexpr inline size_t LabelSolverUpperBound(size_t w, size_t h) {
@@ -42,9 +63,6 @@ BMRS::BMRS(cv::Mat1b const& input) : BMRS(input.cols, input.rows) {
 BMRS::BMRS(size_t w, size_t h) : w_(w), h_(h), label_solver_(LabelSolverUpperBound<8>(w, h)) {
     int h_merge = h / 2 + h % 2;
 
-    // data_compressed.Alloc(h, w);
-    // data_merged.Alloc(h_merge, w);
-    // data_flags.Alloc(h_merge - 1, w);
     data_runs.Alloc(h_merge, w);
 }
 
@@ -69,16 +87,11 @@ void BMRS::PerformLabeling(cv::Mat1b const& input, cv::Mat1i& labels) {
 
     // generate merged data
     int data_width = data_compressed.DoubleWordWidth();
-    for (int i = 0; i < h / 2; i++) {
+    for (int i = 0; i < h_merge; i++) {
         uint64_t* pdata_source1 = data_compressed[2 * i];
         uint64_t* pdata_source2 = data_compressed[2 * i + 1];
         uint64_t* pdata_merged = data_merged[i];
-        for (int j = 0; j < data_width; j++) pdata_merged[j] = pdata_source1[j] | pdata_source2[j];
-    }
-    if (h % 2) {
-        uint64_t* pdata_source = data_compressed[h - 1];
-        uint64_t* pdata_merged = data_merged[h / 2];
-        for (int j = 0; j < data_width; j++) pdata_merged[j] = pdata_source[j];
+        HWY_NAMESPACE::__MergeRows(pdata_merged, pdata_source1, pdata_source2, data_width);
     }
 
     // generate flag bits
@@ -146,78 +159,6 @@ void BMRS::PerformLabeling(cv::Mat1b const& input, cv::Mat1i& labels) {
         }
     }
 }
-
-// template <size_t LEN>
-// void ArrayToBinary(uint64_t* __restrict dst, const uint8_t* __restrict src) {
-//     constexpr hw::ScalableTag<uint8_t> d;
-//     constexpr int N = hw::Lanes(d);
-//     static_assert(LEN % 64 == 0);
-
-//     uint8_t* workingPtr = (uint8_t*)dst;
-
-//     for (auto i = 0; i < LEN; i += N) {
-//         const auto va = hw::Load(d, src + i);
-//         workingPtr += hw::StoreMaskBits(d, va != hw::Zero(d), workingPtr);
-//     }
-// }
-
-// void BMRS::InitCompressedData(cv::Mat1b const& input, Data_Compressed& data_compressed) {
-//     int w(w_);
-//     int h(h_);
-
-//     // constexpr hw::ScalableTag<uint8_t> d;
-//     // constexpr int N = hw::Lanes(d);
-//     // uint8_t* mbits = (uint8_t*)data_compressed.bits;
-//     // unsigned long long orig = (unsigned long long)mbits;
-//     // uint8_t* source = input.data;
-//     // for (int i = 0; i < w * h; i += N) {
-//     //     const auto va = hw::Load(d, source + i);
-//     //     mbits += hw::StoreMaskBits(d, va != hw::Zero(d), mbits);
-//     // }
-
-//     // std::cout << "HERE!!" << std::endl;
-//     // data_compressed.Show();
-
-//     // std::cout << std::endl << " ============================= " << std::endl;
-
-//     for (int i = 0; i < h; i++) {
-//         uint64_t* mbits = data_compressed[i];
-//         const uint8_t* source = input.ptr<uchar>(i);
-
-//         for (int j = 0; j < w >> 6; j++) {
-//             const uint8_t* base = source + (j << 6);
-
-//             // Load 64 pixels at once using AVX2
-//             __m256i pixel_chunk1 = _mm256_loadu_si256((__m256i*)base);
-//             __m256i pixel_chunk2 = _mm256_loadu_si256((__m256i*)(base + 32));
-
-//             // Compare each byte with zero to generate a mask
-//             __m256i mask1 = _mm256_cmpgt_epi8(pixel_chunk1, _mm256_setzero_si256());
-//             __m256i mask2 = _mm256_cmpgt_epi8(pixel_chunk2, _mm256_setzero_si256());
-
-//             // Compress the result into 64-bit integers
-//             uint32_t lower_bits = _mm256_movemask_epi8(mask1);
-//             uint32_t upper_bits = _mm256_movemask_epi8(mask2);
-//             uint64_t obits = ((uint64_t)upper_bits << 32) | lower_bits;
-
-//             *mbits++ = obits;
-//         }
-
-//         uint64_t obits_final = 0;
-//         int jbase = w - (w % 64);
-//         for (int j = 0; j < w % 64; j++) {
-//             if (source[jbase + j]) obits_final |= ((uint64_t)1 << j);
-//         }
-//         *mbits = obits_final;
-//     }
-
-//     // data_compressed.Show();
-//     // std::cout << std::endl
-//     //           << " ----------------- " << std::endl
-//     //           << std::endl
-//     //           << std::endl
-//     //           << std::endl;
-// }
 
 void BMRS::FindRuns(const uint64_t* bits_start, const uint64_t* bits_flag, int height,
                     int data_width, int data_stride, Run* runs) {

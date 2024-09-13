@@ -49,8 +49,10 @@ class PackedBinaryImage {
         size_t padding = N - (double_word_width_ % N);
         double_word_stride_ = double_word_width_ + padding;
 
-        bits_ = new (std::align_val_t(64)) uint64_t[height_ * double_word_stride_];
-        // bits_ = (uint64_t*)hwy::AllocateAlignedBytes(height_ * double_word_stride_ * 8);
+        // Add an extra row if there is an odd number of rows
+        int alloc_height = height_ + (height_ & 1);
+
+        bits_ = new (std::align_val_t(64)) uint64_t[alloc_height * double_word_stride_];
     }
 
     PackedBinaryImage(cv::Mat1b const& image) : PackedBinaryImage(image.rows, image.cols) {
@@ -64,18 +66,24 @@ class PackedBinaryImage {
             // e.g. a 32px wide image should have the top 32 bits set to 0
             dst[double_word_width_ - 1] &= mask;
         }
+
+        if (height_ & 1) {
+            std::memset(bits_ + double_word_stride_ * height_, 0, double_word_width_ * 8);
+        }
     }
 
     ~PackedBinaryImage() {
         if (bits_) delete[] bits_;
-        // if (bits_) hwy::FreeAlignedBytes(bits_, nullptr, nullptr);
     }
+
     PackedBinaryImage(const PackedBinaryImage& other) {
         *this = other;
     }
+
     PackedBinaryImage(PackedBinaryImage&& other) noexcept {
         swap(*this, other);
     }
+
     PackedBinaryImage& operator=(PackedBinaryImage other) {
         swap(*this, other);
         return *this;
