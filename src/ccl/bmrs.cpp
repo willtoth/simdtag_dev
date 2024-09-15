@@ -12,13 +12,11 @@
 
 #include "bmrs.h"
 
-#include <hwy/contrib/algo/copy-inl.h>
 #include <hwy/highway.h>
-#include <immintrin.h>
 
-#include <iostream>
 #include <opencv2/core.hpp>
 
+#include "apriltag/highway_utils.h"
 #include "apriltag/packed_binary_image.h"
 #include "bit_scan_forward.h"
 #include "disjoint_set.h"
@@ -37,10 +35,49 @@ inline void __MergeRows(uint64_t* __restrict dst, uint64_t* __restrict rowA,
 
     uint8_t* ptr = (uint8_t*)dst;
 
+#if HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128
+// TODO: Restore old here...
+#else
     for (auto i = 0; i < double_word_width * 8; i += N) {
         const auto va = hw::Load(d, (uint8_t*)rowA);
         const auto vb = hw::Load(d, (uint8_t*)rowB);
         hw::Store(va | vb, d, (uint8_t*)dst);
+    }
+#endif
+}
+
+inline void __GenerateFlagBits(PackedBinaryImage& data_compressed, PackedBinaryImage& data_flags) {
+    constexpr hw::ScalableTag<uint64_t> d;
+    constexpr int N = hw::Lanes(d);
+
+    // generate flag bits
+    for (int i = 0; i < data_flags.Height(); i++) {
+        uint64_t* bits_u = data_compressed[2 * i + 1];
+        uint64_t* bits_d = data_compressed[2 * i + 2];
+        uint64_t* bits_dest = data_flags[i];
+
+#if HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128
+        uint64_t u0 = bits_u[0];
+        uint64_t d0 = bits_d[0];
+        bits_dest[0] = (u0 | (u0 << 1)) & (d0 | (d0 << 1));
+        for (int j = 1; j < data_compressed.DoubleWordWidth(); j++) {
+            uint64_t u = bits_u[j];
+            uint64_t u_shl = u << 1;
+            uint64_t d = bits_d[j];
+            uint64_t d_shl = d << 1;
+            if (bits_u[j - 1] & 0x8000000000000000) u_shl |= 1;
+            if (bits_d[j - 1] & 0x8000000000000000) d_shl |= 1;
+            bits_dest[j] = (u | u_shl) & (d | d_shl);
+        }
+#else
+        for (int j = 0; j < data_compressed.DoubleWordWidth(); j += N) {
+            const auto vu = hw::Load(d, &bits_u[j]);
+            const auto vd = hw::Load(d, &bits_d[j]);
+            const auto vu_shl = ShiftLeftOneWithCarry(d, vu);
+            const auto vd_shl = ShiftLeftOneWithCarry(d, vd);
+            hw::Store((vu | vu_shl) & (vd | vd_shl), d, &bits_dest[j]);
+        }
+#endif
     }
 }
 
@@ -88,31 +125,14 @@ void BMRS::PerformLabeling(cv::Mat1b const& input, cv::Mat1i& labels) {
     // generate merged data
     int data_width = data_compressed.DoubleWordWidth();
     for (int i = 0; i < h_merge; i++) {
-        uint64_t* pdata_source1 = data_compressed[2 * i];
-        uint64_t* pdata_source2 = data_compressed[2 * i + 1];
-        uint64_t* pdata_merged = data_merged[i];
+        uint64_t* pdata_source1 = data_compressed.Row(2 * i);
+        uint64_t* pdata_source2 = data_compressed.Row(2 * i + 1);
+        uint64_t* pdata_merged = data_merged.Row(i);
         HWY_NAMESPACE::__MergeRows(pdata_merged, pdata_source1, pdata_source2, data_width);
     }
 
     // generate flag bits
-    for (int i = 0; i < data_flags.Height(); i++) {
-        uint64_t* bits_u = data_compressed[2 * i + 1];
-        uint64_t* bits_d = data_compressed[2 * i + 2];
-        uint64_t* bits_dest = data_flags[i];
-
-        uint64_t u0 = bits_u[0];
-        uint64_t d0 = bits_d[0];
-        bits_dest[0] = (u0 | (u0 << 1)) & (d0 | (d0 << 1));
-        for (int j = 1; j < data_width; j++) {
-            uint64_t u = bits_u[j];
-            uint64_t u_shl = u << 1;
-            uint64_t d = bits_d[j];
-            uint64_t d_shl = d << 1;
-            if (bits_u[j - 1] & 0x8000000000000000) u_shl |= 1;
-            if (bits_d[j - 1] & 0x8000000000000000) d_shl |= 1;
-            bits_dest[j] = (u | u_shl) & (d | d_shl);
-        }
-    }
+    HWY_NAMESPACE::__GenerateFlagBits(data_compressed, data_flags);
 
     // Create label '0' for background
     label_solver_.NewLabel();
@@ -122,7 +142,7 @@ void BMRS::PerformLabeling(cv::Mat1b const& input, cv::Mat1i& labels) {
 
     // New version (uses 1-byte per pixel input)
     Run* runs = data_runs.runs;
-    for (int i = 0; i < h / 2; i++) {
+    for (int i = 0; i < h_merge; i++) {
         const uint64_t* const data_u =
                 data_compressed[0] + data_compressed.DoubleWordStride() * 2 * i;
         const uint64_t* const data_d = data_u + data_compressed.DoubleWordStride();
@@ -141,20 +161,6 @@ void BMRS::PerformLabeling(cv::Mat1b const& input, cv::Mat1i& labels) {
             for (int j = start_pos; j < end_pos; j++) {
                 if (data_u[j >> 6] & (1ull << (j & 0x3F))) labels_u[j] = label;
                 if (data_d[j >> 6] & (1ull << (j & 0x3F))) labels_d[j] = label;
-            }
-        }
-    }
-    if (h % 2) {
-        unsigned int* const labels_end = labels.ptr<unsigned int>(h - 1);
-        for (;; runs++) {
-            unsigned short start_pos = runs->start_pos;
-            if (start_pos == 0xFFFF) {
-                break;
-            }
-            unsigned short end_pos = runs->end_pos;
-            int label = label_solver_.GetLabel(runs->label);
-            for (int j = start_pos; j < end_pos; j++) {
-                labels_end[j] = label;
             }
         }
     }
