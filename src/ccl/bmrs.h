@@ -45,6 +45,8 @@ class BMRS {
     BMRS(size_t w, size_t h);
     ~BMRS();
     void PerformLabeling(cv::Mat1b const& input, cv::Mat1i& labels);
+    void PerformLabelingDual(cv::Mat1b const& input, cv::Mat1i& labels);
+    int LabelCount();
 
    private:
     void FindRuns(const uint64_t* bits_start, const uint64_t* bits_flag, int height, int data_width,
@@ -52,6 +54,7 @@ class BMRS {
     uint64_t is_connected(const uint64_t* flag_bits, unsigned start, unsigned end);
 
     Runs data_runs;
+    Runs data_runs_black;
     DisjointSet label_solver_;
     int w_, h_;
     unsigned int n_labels_;

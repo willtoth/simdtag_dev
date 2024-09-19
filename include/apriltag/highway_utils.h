@@ -33,10 +33,11 @@ constexpr T SetTopBit(T value, bool state) {
 template <class D>
 inline auto ShiftLeftOneWithCarry(D d, auto const& vin) {
     using T = hw::TFromD<D>;
-    T msb_set_mask = SetTopBit<T>(0, true);
 
+    T msb_set_mask = SetTopBit<T>(0, true);
     const auto va = hw::Set(d, msb_set_mask);
-    const auto should_carry = (va & vin) > Set(d, 0);
+
+    const auto should_carry = (va & vin) > hw::Zero(d);
     const auto mask = hw::SlideMask1Up(d, should_carry);
 
     // Option 1

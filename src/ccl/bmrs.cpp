@@ -89,8 +89,8 @@ namespace {
 template <size_t CONNECTIVITY>
 static constexpr inline size_t LabelSolverUpperBound(size_t w, size_t h) {
     static_assert(CONNECTIVITY == 8 || CONNECTIVITY == 4);
-    if (CONNECTIVITY == 4) return ((h * w + 1) / 2 + 1);
-    if (CONNECTIVITY == 8) return (((h + 1) / 2) * ((w + 1) / 2) + 1);
+    if (CONNECTIVITY == 4) return ((h * w + 1) / 2 + 1) * 2;
+    if (CONNECTIVITY == 8) return (((h + 1) / 2) * ((w + 1) / 2) + 1) * 2;
 }
 }  // namespace
 
@@ -101,10 +101,13 @@ BMRS::BMRS(size_t w, size_t h) : w_(w), h_(h), label_solver_(LabelSolverUpperBou
     int h_merge = h / 2 + h % 2;
 
     data_runs.Alloc(h_merge, w);
+
+    data_runs_black.Alloc(h_merge, w);
 }
 
 BMRS::~BMRS() {
     data_runs.Dealloc();
+    data_runs_black.Dealloc();
 }
 
 void BMRS::PerformLabeling(cv::Mat1b const& input, cv::Mat1i& labels) {
@@ -139,6 +142,7 @@ void BMRS::PerformLabeling(cv::Mat1b const& input, cv::Mat1i& labels) {
 
     FindRuns(data_merged[0], data_flags[0], h_merge, data_width, data_compressed.DoubleWordStride(),
              data_runs.runs);
+    n_labels_ = label_solver_.Flatten();
 
     // New version (uses 1-byte per pixel input)
     Run* runs = data_runs.runs;
@@ -161,6 +165,106 @@ void BMRS::PerformLabeling(cv::Mat1b const& input, cv::Mat1i& labels) {
             for (int j = start_pos; j < end_pos; j++) {
                 if (data_u[j >> 6] & (1ull << (j & 0x3F))) labels_u[j] = label;
                 if (data_d[j >> 6] & (1ull << (j & 0x3F))) labels_d[j] = label;
+            }
+        }
+    }
+}
+
+void BMRS::PerformLabelingDual(cv::Mat1b const& input, cv::Mat1i& labels) {
+    assert(input.rows == h_);
+    assert(input.cols == w_);
+    assert(labels.rows == h_);
+    assert(labels.cols == w_);
+    int w(w_);
+    int h(h_);
+
+    label_solver_.Reset();
+
+    int h_merge = h / 2 + h % 2;
+    PackedBinaryImage data_compressed_white = PackedBinaryImage::CreateFromMask<255>(input);
+    PackedBinaryImage data_compressed_black = PackedBinaryImage::CreateFromMask<0>(input);
+    PackedBinaryImage data_merged_white{h_merge, w};
+    PackedBinaryImage data_flags_white{h_merge - 1, w};
+    PackedBinaryImage data_merged_black{h_merge, w};
+    PackedBinaryImage data_flags_black{h_merge - 1, w};
+
+    // generate merged data
+    int data_width = data_compressed_white.DoubleWordWidth();
+    for (int i = 0; i < h_merge; i++) {
+        uint64_t* pdata_source1 = data_compressed_white.Row(2 * i);
+        uint64_t* pdata_source2 = data_compressed_white.Row(2 * i + 1);
+        uint64_t* pdata_merged = data_merged_white.Row(i);
+        HWY_NAMESPACE::__MergeRows(pdata_merged, pdata_source1, pdata_source2, data_width);
+
+        pdata_source1 = data_compressed_black.Row(2 * i);
+        pdata_source2 = data_compressed_black.Row(2 * i + 1);
+        pdata_merged = data_merged_black.Row(i);
+        HWY_NAMESPACE::__MergeRows(pdata_merged, pdata_source1, pdata_source2, data_width);
+    }
+
+    // generate flag bits
+    HWY_NAMESPACE::__GenerateFlagBits(data_compressed_white, data_flags_white);
+    HWY_NAMESPACE::__GenerateFlagBits(data_compressed_black, data_flags_black);
+
+    // Create label '0' for background
+    label_solver_.NewLabel();
+
+    FindRuns(data_merged_white[0], data_flags_white[0], h_merge, data_width,
+             data_compressed_white.DoubleWordStride(), data_runs.runs);
+
+    FindRuns(data_merged_black[0], data_flags_black[0], h_merge, data_width,
+             data_compressed_black.DoubleWordStride(), data_runs_black.runs);
+
+    n_labels_ = label_solver_.Flatten();
+
+    // New version (uses 1-byte per pixel input)
+    Run* runs = data_runs.runs;
+    Run* runs_black = data_runs_black.runs;
+    for (int i = 0; i < h_merge; i++) {
+        {
+            const uint64_t* const data_u =
+                    data_compressed_white[0] + data_compressed_white.DoubleWordStride() * 2 * i;
+            const uint64_t* const data_d = data_u + data_compressed_white.DoubleWordStride();
+            unsigned* const labels_u = labels.ptr<unsigned>(2 * i);
+            unsigned* const labels_d = labels.ptr<unsigned>(2 * i + 1);
+
+            for (;; runs++) {
+                unsigned short start_pos = runs->start_pos;
+                if (start_pos == 0xFFFF) {
+                    runs++;
+                    break;
+                }
+                unsigned short end_pos = runs->end_pos;
+                int label = label_solver_.GetLabel(runs->label);
+
+                for (int j = start_pos; j < end_pos; j++) {
+                    if (data_u[j >> 6] & (1ull << (j & 0x3F))) labels_u[j] = label;
+                    if (data_d[j >> 6] & (1ull << (j & 0x3F))) labels_d[j] = label;
+                }
+            }
+        }
+
+        {
+            // black
+            const uint64_t* const data_u =
+                    data_compressed_black[0] + data_compressed_black.DoubleWordStride() * 2 * i;
+            const uint64_t* const data_d = data_u + data_compressed_black.DoubleWordStride();
+            unsigned* const labels_u = labels.ptr<unsigned>(2 * i);
+            unsigned* const labels_d = labels.ptr<unsigned>(2 * i + 1);
+
+            for (;; runs_black++) {
+                unsigned short start_pos = runs_black->start_pos;
+                if (start_pos == 0xFFFF) {
+                    runs_black++;
+                    break;
+                }
+                unsigned short end_pos = runs_black->end_pos;
+                int label = label_solver_.GetLabel(runs_black->label);
+
+                for (int j = start_pos; j < end_pos; j++) {
+                    if (data_u[j >> 6] & (1ull << (j & 0x3F))) labels_u[j] = label;
+                    if (data_d[j >> 6] & (1ull << (j & 0x3F))) labels_d[j] = label;
+                }
             }
         }
     }
@@ -294,7 +398,7 @@ out:
     out2:
         runs_up = runs_save;
     }
-    n_labels_ = label_solver_.Flatten();
+    // n_labels_ = label_solver_.Flatten();
 }
 
 uint64_t BMRS::is_connected(const uint64_t* flag_bits, unsigned start, unsigned end) {
@@ -318,4 +422,9 @@ uint64_t BMRS::is_connected(const uint64_t* flag_bits, unsigned start, unsigned 
     if (flag_bits[ed_base] & cutter_ed) return true;
     return false;
 }
+
+int BMRS::LabelCount() {
+    return n_labels_;
+}
+
 }  // namespace apriltag

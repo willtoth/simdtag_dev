@@ -4,14 +4,15 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-#ifndef YACCLAB_LABELING_BOLELLI_2019_H_
-#define YACCLAB_LABELING_BOLELLI_2019_H_
+#ifndef YACCLAB_LABELING_BOLELLI_2019_DUAL_H_
+#define YACCLAB_LABELING_BOLELLI_2019_DUAL_H_
 
 #include <opencv2/core.hpp>
 #include <vector>
 
 #include "labels_solver.h"
 
+#undef UPPER_BOUND_8_CONNECTIVITY
 #define UPPER_BOUND_8_CONNECTIVITY \
     ((size_t)((img_.rows + 1) / 2) * (size_t)((img_.cols + 1) / 2) + 1)
 
@@ -112,7 +113,7 @@ class SpaghettiDual {  // : public Labeling2D<Connectivity2D::CONN_8> {
     cv::Mat1i img_labels_black;
     // cv::Mat1i& img_labels_two;
     unsigned int n_labels_;
-    Spaghetti(cv::Mat1b& input, cv::Mat1i& labels) : img_(input), img_labels_white(labels) {
+    SpaghettiDual(cv::Mat1b& input, cv::Mat1i& labels) : img_(input), img_labels_white(labels) {
     }
 
     void PerformSPLabeling() {
@@ -342,8 +343,5 @@ class SpaghettiDual {  // : public Labeling2D<Connectivity2D::CONN_8> {
     int e_cols;
     bool o_cols;
 };
-
-unsigned* UFPC::P_ = nullptr;
-unsigned UFPC::length_ = 0;
 
 #endif  // YACCLAB_LABELING_BOLELLI_2019_H_

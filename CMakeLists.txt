@@ -21,7 +21,7 @@ find_package(HWY 1.2.0 REQUIRED)
 set(COMMON_COMPILE_OPTIONS "-std=c++20" "-fno-omit-frame-pointer" "-march=native")
 set(COMMON_INCLUDE_DIRS ${OpenCV_INCLUDE_DIRS} "include" "src")
 set(COMMON_LINK_TARGETS fmt::fmt hwy ${OpenCV_LIBS})
-set(COMMON_TARGET_DEFINES)
+set(COMMON_TARGET_DEFINES CMAKE_PROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}" CMAKE_PROJECT_BUILD_DIR="${CMAKE_BINARY_DIR}")
 
 #########################
 # Fetch all dependencies
@@ -69,7 +69,7 @@ if(WITH_TRACING)
     FetchContent_MakeAvailable(tracy)
 
     set(COMMON_LINK_TARGETS ${COMMON_LINK_TARGETS} Tracy::TracyClient)
-    set(COMMON_TARGET_DEFINES TRACY_ENABLE TRACY_VERBOSE TRACY_NO_EXIT)
+    set(COMMON_TARGET_DEFINES COMMON_TARGET_DEFINES TRACY_ENABLE TRACY_VERBOSE TRACY_NO_EXIT)
     set(TRACY_SOURCE ${tracy_SOURCE_DIR}/public/TracyClient.cpp)
     add_subdirectory(${tracy_SOURCE_DIR}/profiler ${CMAKE_BINARY_DIR}/tracy)
 endif()
@@ -107,7 +107,6 @@ if(WITH_TESTS)
     target_link_libraries(apriltag_test ${COMMON_LINK_TARGETS} GTest::gtest_main apriltag)
     target_compile_definitions(apriltag_test PUBLIC ${COMMON_TARGET_DEFINES})
     target_include_directories(apriltag_test PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
-    target_compile_definitions(apriltag_test PUBLIC CMAKE_PROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 
     gtest_discover_tests(apriltag_test)
 endif()
@@ -132,7 +131,6 @@ add_executable(
 target_compile_options(bmrs PUBLIC -save-temps ${COMMON_COMPILE_OPTIONS})
 target_include_directories(bmrs PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
 target_link_libraries(bmrs benchmark::benchmark ${COMMON_LINK_TARGETS} apriltag)
-target_compile_definitions(bmrs PUBLIC CMAKE_PROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 
 add_custom_target(assembly
     COMMAND ${CMAKE_CXX_COMPILER} -S -fverbose-asm -g ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/ccl/bmrs.cpp -o ${CMAKE_BINARY_DIR}/bmrs.s

@@ -30,6 +30,21 @@ inline void __ToBinaryAlignedPadded(uint64_t* __restrict dst, const uint8_t* __r
     }
 }
 
+template <uint8_t COMPARE>
+inline void __ToBinaryAlignedPaddedMasked(uint64_t* __restrict dst, const uint8_t* __restrict src,
+                                          size_t len_bytes) {
+    constexpr hw::ScalableTag<uint8_t> d;
+    constexpr int N = hw::Lanes(d);
+    static const auto vcompare = hw::Set(d, COMPARE);
+
+    uint8_t* ptr = (uint8_t*)dst;
+
+    for (auto i = 0; i < len_bytes; i += N) {
+        const auto va = hw::LoadU(d, src + i);  // Can't assume source is aligned
+        ptr += hw::StoreMaskBits(d, va == vcompare, ptr);
+    }
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 HWY_AFTER_NAMESPACE();
@@ -55,21 +70,13 @@ class PackedBinaryImage {
         bits_ = new (std::align_val_t(64)) uint64_t[alloc_height * double_word_stride_];
     }
 
-    PackedBinaryImage(cv::Mat1b const& image) : PackedBinaryImage(image.rows, image.cols) {
-        assert(image.isContinuous());
-        uint64_t mask = 0xFFFFFFFFFFFFFFFF >> (64 - (width_ % 64));
-        for (int i = 0; i < height_; i++) {
-            uint64_t* dst = bits_ + double_word_stride_ * i;
-            HWY_NAMESPACE::__ToBinaryAlignedPadded(dst, image.ptr<uint8_t>(i), image.cols);
+    PackedBinaryImage(cv::Mat1b const& image)
+        : PackedBinaryImage(image, HWY_NAMESPACE::__ToBinaryAlignedPadded) {
+    }
 
-            // Bits that overhang the 64-bit boundary should have the remaining bits set to 0
-            // e.g. a 32px wide image should have the top 32 bits set to 0
-            dst[double_word_width_ - 1] &= mask;
-        }
-
-        if (height_ & 1) {
-            std::memset(bits_ + double_word_stride_ * height_, 0, double_word_width_ * 8);
-        }
+    template <size_t MASK>
+    static PackedBinaryImage CreateFromMask(cv::Mat1b const& image) {
+        return PackedBinaryImage{image, HWY_NAMESPACE::__ToBinaryAlignedPaddedMasked<MASK>};
     }
 
     ~PackedBinaryImage() {
@@ -132,6 +139,25 @@ class PackedBinaryImage {
     }
 
    private:
+    template <typename FCN>
+    PackedBinaryImage(cv::Mat1b const& image, FCN&& fcn)
+        : PackedBinaryImage(image.rows, image.cols) {
+        assert(image.isContinuous());
+        uint64_t mask = 0xFFFFFFFFFFFFFFFF >> (64 - (width_ % 64));
+        for (int i = 0; i < height_; i++) {
+            uint64_t* dst = bits_ + double_word_stride_ * i;
+            fcn(dst, image.ptr<uint8_t>(i), image.cols);
+
+            // Bits that overhang the 64-bit boundary should have the remaining bits set to 0
+            // e.g. a 32px wide image should have the top 32 bits set to 0
+            dst[double_word_width_ - 1] &= mask;
+        }
+
+        if (height_ & 1) {
+            std::memset(bits_ + double_word_stride_ * height_, 0, double_word_width_ * 8);
+        }
+    }
+
     PackedBinaryImage() = delete;
     uint64_t* bits_;
     size_t height_;

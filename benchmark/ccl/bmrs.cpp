@@ -13,6 +13,7 @@
 #include "third_party/yacclab/bmrs.h"
 #include "third_party/yacclab/labels_solver.h"
 #include "third_party/yacclab/spaghetti.h"
+#include "third_party/yacclab/spaghetti_dual.h"
 
 unsigned* UF::P_;
 unsigned UF::length_;
@@ -45,6 +46,16 @@ static void BM_BmrsThreadSwap(benchmark::State& state) {
     }
 }
 
+static void BM_BmrsDual(benchmark::State& state) {
+    cv::Mat1b thresholdedOutput = cv::imread(GetImageFilename(), cv::IMREAD_GRAYSCALE);
+    apriltag::BMRS ccl{thresholdedOutput};
+
+    for (auto _ : state) {
+        cv::Mat1i labels = cv::Mat1i{thresholdedOutput.size(), 0};
+        ccl.PerformLabelingDual(thresholdedOutput, labels);
+    }
+}
+
 static void BM_YacclabBmrs(benchmark::State& state) {
     cv::Mat1b thresholdedOutput = cv::imread(GetImageFilename(), cv::IMREAD_GRAYSCALE);
     cv::Mat1i labels;
@@ -65,10 +76,22 @@ static void BM_YacclabSpaghetti(benchmark::State& state) {
     }
 }
 
+static void BM_YacclabSpaghettiDual(benchmark::State& state) {
+    cv::Mat1b thresholdedOutput = cv::imread(GetImageFilename(), cv::IMREAD_GRAYSCALE);
+    cv::Mat1i labels;
+
+    for (auto _ : state) {
+        SpaghettiDual<UFPC> ccl{thresholdedOutput, labels};
+        ccl.PerformSPLabeling();
+    }
+}
+
 BENCHMARK(BM_YacclabBmrs);
 BENCHMARK(BM_Bmrs);
 BENCHMARK(BM_BmrsThreadSwap);
+BENCHMARK(BM_BmrsDual);
 BENCHMARK(BM_YacclabSpaghetti);
+BENCHMARK(BM_YacclabSpaghettiDual);
 //  BENCHMARK(BM_YacclabBmrs);
 //  BENCHMARK(BM_Bmrs);
 //  BENCHMARK(BM_YacclabSpaghetti);

@@ -8,9 +8,11 @@
 #include <iostream>
 #include <map>
 #include <opencv2/opencv.hpp>
+#include <sstream>
 #include <string>
 
 #include "apriltag/memory_pool.h"
+#include "apriltag/vision_utils.h"
 #include "ccl_samples.h"
 
 TEST(Bmrs, TestCaseCount) {
@@ -44,5 +46,23 @@ TEST(Bmrs, TestCases) {
         } else {
             EXPECT_TRUE(is_equal) << test_name;
         }
+    }
+}
+
+TEST(Bmrs, DualLabel) {
+    for (auto const& [test_name, expected_value] : CclExpectedOuputs::TestCases) {
+        std::cout << "name:" << test_name << std::endl;
+        cv::Mat1b image = cv::imread(CclExpectedOuputs::GetImage(test_name), cv::IMREAD_GRAYSCALE);
+        cv::Mat1i labels = cv::Mat1i{image.size(), 0};
+        apriltag::BMRS ccl{image};
+
+        ccl.PerformLabelingDual(image, labels);
+
+        auto labeledImage = apriltag::CreateLabeledImage(labels, ccl.LabelCount());
+
+        std::stringstream filename;
+        filename << CMAKE_PROJECT_BUILD_DIR << "/bmrs_imgs/" << test_name << ".png";
+
+        cv::imwrite(filename.str(), labeledImage);
     }
 }
