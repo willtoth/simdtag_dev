@@ -6,7 +6,7 @@
 
 #include "atomic_stack.h"
 
-namespace apriltag {
+namespace simdtag {
 
 template <typename T, size_t N>
 class PreallocMemPool {
@@ -44,8 +44,8 @@ class PreallocMemPool {
         }
     }
 
-    apriltag::FixedSizeAtomicStack<std::unique_ptr<T>, N> dirty_pool_;
-    apriltag::FixedSizeAtomicStack<std::unique_ptr<T>, N> clean_pool_;
+    simdtag::FixedSizeAtomicStack<std::unique_ptr<T>, N> dirty_pool_;
+    simdtag::FixedSizeAtomicStack<std::unique_ptr<T>, N> clean_pool_;
 
     std::thread thread_;
     std::atomic_bool run_thread_;
@@ -62,4 +62,4 @@ class AutoZerodMatPool : public PreallocMemPool<cv::Mat1i, N> {
     }
 };
 
-}  // namespace apriltag
+}  // namespace simdtag

@@ -3,12 +3,12 @@
 
 #include <opencv2/opencv.hpp>
 
-#include "apriltag/packed_binary_image.h"
 #include "ccl_samples.h"
+#include "simdtag/packed_binary_image.h"
 
 // #define __DO_PRINT_BPI_TEST
 
-void TestResult(cv::Mat1b& image, apriltag::PackedBinaryImage& pbi) {
+void TestResult(cv::Mat1b& image, simdtag::PackedBinaryImage& pbi) {
     const int w = image.cols;
     const int h = image.rows;
     const int row_width = w / 64 + 1;
@@ -127,7 +127,7 @@ void TestResult(cv::Mat1b& image, apriltag::PackedBinaryImage& pbi) {
 TEST(PackedBinaryImage, TestCaseCount) {
     for (auto const& [test_name, expected_value] : CclExpectedOuputs::TestCases) {
         cv::Mat1b image = cv::imread(CclExpectedOuputs::GetImage(test_name), cv::IMREAD_GRAYSCALE);
-        apriltag::PackedBinaryImage pbi(image);
+        simdtag::PackedBinaryImage pbi(image);
 
 #ifdef __DO_PRINT_BPI_TEST
         fmt::println("{}", test_name);

@@ -19,7 +19,7 @@
 
 #include "disjoint_set.h"
 
-namespace apriltag {
+namespace simdtag {
 
 class BMRS {
     struct Run {
@@ -60,4 +60,4 @@ class BMRS {
     unsigned int n_labels_;
 };
 
-}  // namespace apriltag
+}  // namespace simdtag

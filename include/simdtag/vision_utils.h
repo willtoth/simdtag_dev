@@ -4,7 +4,7 @@
 
 #include <opencv2/core.hpp>
 
-namespace apriltag {
+namespace simdtag {
 
 namespace {
 
@@ -40,4 +40,4 @@ cv::Mat CreateLabeledImage(cv::Mat1i const& labels, int nLabels) {
     return labeledImage;
 }
 
-}  // namespace apriltag
+}  // namespace simdtag

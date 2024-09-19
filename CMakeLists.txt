@@ -11,6 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED     ON)
 set(CMAKE_CXX_FLAGS_RELEASE        "-O3")
 
 option(WITH_TESTS "Build unit tests" ON)
+option(WITH_BENCHMARKS "Compare various methods to eachother" ON)
 option(WITH_TRACING "Build with tracy enabled for profiling" OFF)
 
 project(evetest)
@@ -55,6 +56,17 @@ FetchContent_Declare(
   GIT_TAG        cd9ee4c4449775a2f867acf31c84b7fe4b132ad5)
 FetchContent_MakeAvailable(flamegraph)
 
+if(WITH_TESTS OR WITH_BENCHMARKS)
+    FetchContent_Declare(
+        apriltag
+        GIT_REPOSITORY https://github.com/AprilRobotics/apriltag.git
+        GIT_TAG v3.4.2
+        GIT_SHALLOW TRUE
+        GIT_PROGRESS TRUE
+    )
+    FetchContent_MakeAvailable(apriltag)
+endif()
+
 #########################
 # Tracy
 #########################
@@ -75,21 +87,21 @@ if(WITH_TRACING)
 endif()
 
 #########################
-# apriltag
+# simdtag
 #########################
-add_library(apriltag STATIC src/ccl/disjoint_set.cpp src/ccl/bmrs.cpp)
-target_compile_options(apriltag PUBLIC)
-target_compile_options(apriltag PUBLIC ${COMMON_COMPILE_OPTIONS})
-target_include_directories(apriltag PRIVATE ${OpenCV_INCLUDE_DIRS} "include")
-target_link_libraries(apriltag ${COMMON_LINK_TARGETS})
-target_compile_definitions(apriltag PUBLIC ${COMMON_TARGET_DEFINES})
+add_library(simdtag STATIC src/ccl/disjoint_set.cpp src/ccl/bmrs.cpp)
+target_compile_options(simdtag PUBLIC)
+target_compile_options(simdtag PUBLIC ${COMMON_COMPILE_OPTIONS})
+target_include_directories(simdtag PRIVATE ${OpenCV_INCLUDE_DIRS} "include")
+target_link_libraries(simdtag ${COMMON_LINK_TARGETS})
+target_compile_definitions(simdtag PUBLIC ${COMMON_TARGET_DEFINES})
 
 #########################
 # evetest
 #########################
 add_executable(evetest main.cpp)
 target_compile_options(evetest PUBLIC ${COMMON_COMPILE_OPTIONS})
-target_link_libraries(evetest ${COMMON_LINK_TARGETS} apriltag)
+target_link_libraries(evetest ${COMMON_LINK_TARGETS} simdtag)
 target_compile_definitions(evetest PUBLIC ${COMMON_TARGET_DEFINES})
 target_include_directories(evetest PRIVATE ${OpenCV_INCLUDE_DIRS} "include")
 
@@ -102,40 +114,42 @@ if(WITH_TESTS)
 
     file(GLOB_RECURSE test_source test/*_test.cpp test/ccl_samples.cpp)
 
-    add_executable(apriltag_test ${test_source})
-    target_compile_options(apriltag_test PUBLIC ${COMMON_COMPILE_OPTIONS})
-    target_link_libraries(apriltag_test ${COMMON_LINK_TARGETS} GTest::gtest_main apriltag)
-    target_compile_definitions(apriltag_test PUBLIC ${COMMON_TARGET_DEFINES})
-    target_include_directories(apriltag_test PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
+    add_executable(simdtag_test ${test_source})
+    target_compile_options(simdtag_test PUBLIC ${COMMON_COMPILE_OPTIONS})
+    target_link_libraries(simdtag_test ${COMMON_LINK_TARGETS} GTest::gtest_main simdtag)
+    target_compile_definitions(simdtag_test PUBLIC ${COMMON_TARGET_DEFINES})
+    target_include_directories(simdtag_test PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
 
-    gtest_discover_tests(apriltag_test)
+    gtest_discover_tests(simdtag_test)
 endif()
 
 #########################
 # benchmarks
 #########################
 
-add_executable(
-  disjoint_set_bench
-  benchmark/ccl/disjoint_set.cpp
-)
-target_include_directories(disjoint_set_bench PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
-target_link_libraries(disjoint_set_bench ${COMMON_LINK_TARGETS} apriltag benchmark::benchmark)
-target_compile_definitions(disjoint_set_bench PUBLIC ${COMMON_TARGET_DEFINES})
+if(WITH_BENCHMARKS)
+    add_executable(
+    disjoint_set_bench
+    benchmark/ccl/disjoint_set.cpp
+    )
+    target_include_directories(disjoint_set_bench PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
+    target_link_libraries(disjoint_set_bench ${COMMON_LINK_TARGETS} simdtag benchmark::benchmark)
+    target_compile_definitions(disjoint_set_bench PUBLIC ${COMMON_TARGET_DEFINES})
 
-add_executable(
-  bmrs
-  benchmark/ccl/bmrs.cpp
-  ${TRACY_SOURCE}
-)
-target_compile_options(bmrs PUBLIC -save-temps ${COMMON_COMPILE_OPTIONS})
-target_include_directories(bmrs PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
-target_link_libraries(bmrs benchmark::benchmark ${COMMON_LINK_TARGETS} apriltag)
+    add_executable(
+    bmrs
+    benchmark/ccl/bmrs.cpp
+    ${TRACY_SOURCE}
+    )
+    target_compile_options(bmrs PUBLIC -save-temps ${COMMON_COMPILE_OPTIONS})
+    target_include_directories(bmrs PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
+    target_link_libraries(bmrs benchmark::benchmark ${COMMON_LINK_TARGETS} simdtag)
 
-add_custom_target(assembly
-    COMMAND ${CMAKE_CXX_COMPILER} -S -fverbose-asm -g ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/ccl/bmrs.cpp -o ${CMAKE_BINARY_DIR}/bmrs.s
-    DEPENDS bmrs
-)
+    add_custom_target(assembly
+        COMMAND ${CMAKE_CXX_COMPILER} -S -fverbose-asm -g ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/ccl/bmrs.cpp -o ${CMAKE_BINARY_DIR}/bmrs.s
+        DEPENDS bmrs
+    )
+endif()
 
 #########################
 # Flame Graph Generation

@@ -12,7 +12,7 @@
 
 namespace hw = hwy::HWY_NAMESPACE;
 
-namespace apriltag {
+namespace simdtag {
 
 HWY_BEFORE_NAMESPACE();
 namespace HWY_NAMESPACE {
@@ -170,4 +170,4 @@ class PackedBinaryImage {
     size_t double_word_width_;
 };
 
-}  // namespace apriltag
+}  // namespace simdtag

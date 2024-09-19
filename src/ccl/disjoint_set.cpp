@@ -12,7 +12,7 @@
 #include <cstdint>
 #include <cstring>
 
-namespace apriltag {
+namespace simdtag {
 
 DisjointSet::DisjointSet(size_t max_size) : size_(max_size), length_(0) {
     tree_ = new uint32_t[max_size];
@@ -64,8 +64,7 @@ uint32_t DisjointSet::Merge(uint32_t i, uint32_t j) {
     i = FindRoot(i);
     j = FindRoot(j);
 
-    if (i < j)
-        return tree_[j] = i;
+    if (i < j) return tree_[j] = i;
     return tree_[i] = j;
 }
 
@@ -82,4 +81,4 @@ uint32_t DisjointSet::Flatten() {
     return k;
 }
 
-}  // namespace apriltag
+}  // namespace simdtag

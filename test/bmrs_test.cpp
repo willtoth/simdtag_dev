@@ -11,9 +11,9 @@
 #include <sstream>
 #include <string>
 
-#include "apriltag/memory_pool.h"
-#include "apriltag/vision_utils.h"
 #include "ccl_samples.h"
+#include "simdtag/memory_pool.h"
+#include "simdtag/vision_utils.h"
 
 TEST(Bmrs, TestCaseCount) {
     EXPECT_TRUE(CclExpectedOuputs::TestCases.size() >= 17);
@@ -24,7 +24,7 @@ TEST(Bmrs, TestCases) {
         std::cout << "name:" << test_name << std::endl;
         cv::Mat1b image = cv::imread(CclExpectedOuputs::GetImage(test_name), cv::IMREAD_GRAYSCALE);
         cv::Mat1i labels = cv::Mat1i{image.size(), 0};
-        apriltag::BMRS ccl{image};
+        simdtag::BMRS ccl{image};
 
         ccl.PerformLabeling(image, labels);
 
@@ -54,11 +54,11 @@ TEST(Bmrs, DualLabel) {
         std::cout << "name:" << test_name << std::endl;
         cv::Mat1b image = cv::imread(CclExpectedOuputs::GetImage(test_name), cv::IMREAD_GRAYSCALE);
         cv::Mat1i labels = cv::Mat1i{image.size(), 0};
-        apriltag::BMRS ccl{image};
+        simdtag::BMRS ccl{image};
 
         ccl.PerformLabelingDual(image, labels);
 
-        auto labeledImage = apriltag::CreateLabeledImage(labels, ccl.LabelCount());
+        auto labeledImage = simdtag::CreateLabeledImage(labels, ccl.LabelCount());
 
         std::stringstream filename;
         filename << CMAKE_PROJECT_BUILD_DIR << "/bmrs_imgs/" << test_name << ".png";

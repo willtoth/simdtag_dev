@@ -8,8 +8,8 @@
 #include <string>
 #include <thread>
 
-#include "apriltag/atomic_stack.h"
-#include "apriltag/memory_pool.h"
+#include "simdtag/atomic_stack.h"
+#include "simdtag/memory_pool.h"
 #include "third_party/yacclab/bmrs.h"
 #include "third_party/yacclab/labels_solver.h"
 #include "third_party/yacclab/spaghetti.h"
@@ -26,7 +26,7 @@ std::string& GetImageFilename() {
 
 static void BM_Bmrs(benchmark::State& state) {
     cv::Mat1b thresholdedOutput = cv::imread(GetImageFilename(), cv::IMREAD_GRAYSCALE);
-    apriltag::BMRS ccl{thresholdedOutput};
+    simdtag::BMRS ccl{thresholdedOutput};
 
     for (auto _ : state) {
         cv::Mat1i labels = cv::Mat1i{thresholdedOutput.size(), 0};
@@ -36,8 +36,8 @@ static void BM_Bmrs(benchmark::State& state) {
 
 static void BM_BmrsThreadSwap(benchmark::State& state) {
     cv::Mat1b thresholdedOutput = cv::imread(GetImageFilename(), cv::IMREAD_GRAYSCALE);
-    apriltag::AutoZerodMatPool<4> matPool(thresholdedOutput.size());
-    apriltag::BMRS ccl{thresholdedOutput};
+    simdtag::AutoZerodMatPool<4> matPool(thresholdedOutput.size());
+    simdtag::BMRS ccl{thresholdedOutput};
 
     for (auto _ : state) {
         auto tmp = matPool.Aquire();
@@ -48,7 +48,7 @@ static void BM_BmrsThreadSwap(benchmark::State& state) {
 
 static void BM_BmrsDual(benchmark::State& state) {
     cv::Mat1b thresholdedOutput = cv::imread(GetImageFilename(), cv::IMREAD_GRAYSCALE);
-    apriltag::BMRS ccl{thresholdedOutput};
+    simdtag::BMRS ccl{thresholdedOutput};
 
     for (auto _ : state) {
         cv::Mat1i labels = cv::Mat1i{thresholdedOutput.size(), 0};

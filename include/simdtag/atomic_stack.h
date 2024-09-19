@@ -4,7 +4,7 @@
 #include <semaphore>
 #include <stack>
 
-namespace apriltag {
+namespace simdtag {
 
 template <typename T, size_t N>
 class FixedSizeAtomicStack {
@@ -44,4 +44,4 @@ class FixedSizeAtomicStack {
     std::mutex mutex_;
 };
 
-}  // namespace apriltag
+}  // namespace simdtag

@@ -6,7 +6,7 @@
 
 namespace hw = hwy::HWY_NAMESPACE;
 
-namespace apriltag {
+namespace simdtag {
 
 HWY_BEFORE_NAMESPACE();
 namespace HWY_NAMESPACE {
@@ -50,4 +50,4 @@ inline auto ShiftLeftOneWithCarry(D d, auto const& vin) {
 }  // namespace HWY_NAMESPACE
 HWY_AFTER_NAMESPACE();
 
-}  // namespace apriltag
+}  // namespace simdtag

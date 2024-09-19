@@ -8,7 +8,7 @@
 
 #include <version>
 
-namespace apriltag {
+namespace simdtag {
 
 #if defined _MSC_VER
 #include <intrin.h>
@@ -61,4 +61,4 @@ inline unsigned char YacclabBitScanForward64(unsigned long* Index, uint64_t Mask
 }
 #endif
 
-}  // namespace apriltag
+}  // namespace simdtag

@@ -16,14 +16,14 @@
 
 #include <opencv2/core.hpp>
 
-#include "apriltag/highway_utils.h"
-#include "apriltag/packed_binary_image.h"
 #include "bit_scan_forward.h"
 #include "disjoint_set.h"
+#include "simdtag/highway_utils.h"
+#include "simdtag/packed_binary_image.h"
 
 namespace hw = hwy::HWY_NAMESPACE;
 
-namespace apriltag {
+namespace simdtag {
 
 HWY_BEFORE_NAMESPACE();
 namespace HWY_NAMESPACE {
@@ -427,4 +427,4 @@ int BMRS::LabelCount() {
     return n_labels_;
 }
 
-}  // namespace apriltag
+}  // namespace simdtag

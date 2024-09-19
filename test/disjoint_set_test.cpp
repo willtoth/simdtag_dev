@@ -4,7 +4,7 @@
 
 #include <exception>
 
-using namespace apriltag;
+using namespace simdtag;
 
 // Demonstrate some basic assertions.
 TEST(DisjointSet, NewLabel) {

@@ -11,7 +11,7 @@
 #include <cstdint>
 #include <cstring>
 
-namespace apriltag {
+namespace simdtag {
 
 class DisjointSet {
    public:
@@ -32,4 +32,4 @@ class DisjointSet {
     size_t size_;
 };
 
-}  // namespace apriltag
+}  // namespace simdtag

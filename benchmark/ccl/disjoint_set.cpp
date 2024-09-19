@@ -8,7 +8,7 @@
 
 static constexpr int N = 100000;
 static constexpr int NUM_SET_TO_MERGE = 100;
-using TestSet = apriltag::DisjointSet;
+using TestSet = simdtag::DisjointSet;
 
 void InitializeSet(TestSet& ds) {
     for (int i = 0; i < N; i++) {

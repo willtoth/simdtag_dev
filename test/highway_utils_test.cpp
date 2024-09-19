@@ -1,4 +1,4 @@
-#include "apriltag/highway_utils.h"
+#include "simdtag/highway_utils.h"
 
 #include <gtest/gtest.h>
 #include <stdint.h>
@@ -7,7 +7,7 @@
 
 namespace hw = hwy::HWY_NAMESPACE;
 
-namespace apriltag {
+namespace simdtag {
 
 HWY_BEFORE_NAMESPACE();
 namespace HWY_NAMESPACE {
@@ -40,4 +40,4 @@ TEST(CarryShift, ButDoesItCarry) {
 }  // namespace HWY_NAMESPACE
 HWY_AFTER_NAMESPACE();
 
-}  // namespace apriltag
+}  // namespace simdtag
