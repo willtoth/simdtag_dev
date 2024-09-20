@@ -13,6 +13,7 @@
 
 #include "ccl_samples.h"
 #include "simdtag/memory_pool.h"
+#include "simdtag/packed_binary_image.h"
 #include "simdtag/vision_utils.h"
 
 TEST(Bmrs, TestCaseCount) {
@@ -51,7 +52,6 @@ TEST(Bmrs, TestCases) {
 
 TEST(Bmrs, DualLabel) {
     for (auto const& [test_name, expected_value] : CclExpectedOuputs::TestCases) {
-        std::cout << "name:" << test_name << std::endl;
         cv::Mat1b image = cv::imread(CclExpectedOuputs::GetImage(test_name), cv::IMREAD_GRAYSCALE);
         cv::Mat1i labels = cv::Mat1i{image.size(), 0};
         simdtag::BMRS ccl{image};
@@ -61,8 +61,33 @@ TEST(Bmrs, DualLabel) {
         auto labeledImage = simdtag::CreateLabeledImage(labels, ccl.LabelCount());
 
         std::stringstream filename;
-        filename << CMAKE_PROJECT_BUILD_DIR << "/bmrs_imgs/" << test_name << ".png";
+        filename << CMAKE_PROJECT_BUILD_DIR << "/" << test_name << ".png";
 
         cv::imwrite(filename.str(), labeledImage);
+    }
+
+    {
+        // TODO: Add a test that goes past 512 byte width boundary
+        cv::Mat1b image =
+                cv::imread("/home/will/src/apriltag_playground/assets/yacclab/testimage.png",
+                           cv::IMREAD_GRAYSCALE);
+        cv::Mat1i labels = cv::Mat1i{image.size(), 0};
+        simdtag::BMRS ccl{image};
+
+        ccl.PerformLabelingDual(image, labels);
+
+        auto labeledImage = simdtag::CreateLabeledImage(labels, ccl.LabelCount());
+
+        std::stringstream filename;
+        filename << CMAKE_PROJECT_BUILD_DIR << "/" << "testimage" << ".png";
+
+        std::stringstream filename2;
+        filename2 << CMAKE_PROJECT_BUILD_DIR << "/" << "testimage_binary" << ".png";
+
+        auto pbi = simdtag::PackedBinaryImage::CreateFromMask<255>(image);
+        auto out = pbi.ToMat();
+
+        cv::imwrite(filename.str(), labeledImage);
+        cv::imwrite(filename2.str(), out);
     }
 }

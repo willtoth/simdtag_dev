@@ -3,9 +3,11 @@
 #include <fmt/format.h>
 #include <hwy/aligned_allocator.h>
 #include <hwy/contrib/algo/copy-inl.h>
+#include <hwy/contrib/algo/transform-inl.h>
 #include <hwy/highway.h>
 
 #include <algorithm>
+#include <bit>
 #include <cstdint>
 #include <new>
 #include <opencv2/core.hpp>
@@ -118,6 +120,10 @@ class PackedBinaryImage {
         return height_;
     }
 
+    size_t Width() {
+        return width_;
+    }
+
     size_t WidthBits() {
         return width_;
     }
@@ -136,6 +142,30 @@ class PackedBinaryImage {
 
     uint64_t* Row(uint64_t row) {
         return bits_ + double_word_stride_ * row;
+    }
+
+    bool Index(size_t row, size_t col) {
+        uint64_t mask = 1 << col;
+        return (*(Row(row) + (col / 64)) & mask) != 0;
+    }
+
+    cv::Mat ToMat() {
+        cv::Mat1b result{cv::Size{static_cast<int>(width_), static_cast<int>(height_)}};
+
+        for (int i = 0; i < height_; i++) {
+            uint8_t* output_row = result.ptr<uint8_t>(i);
+            uint64_t* input_row = Row(i);
+            uint64_t mask = 1;
+            for (int j = 0; j < width_; j++) {
+                *output_row++ = ((*input_row) & mask) == 0 ? 0 : 255;
+                mask = std::rotl(mask, 1);
+                if (mask == 1) {
+                    input_row++;
+                }
+            }
+        }
+
+        return result;
     }
 
    private:

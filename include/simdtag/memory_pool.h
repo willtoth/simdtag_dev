@@ -3,6 +3,7 @@
 #include <atomic>
 #include <memory>
 #include <opencv2/opencv.hpp>
+#include <thread>
 
 #include "atomic_stack.h"
 

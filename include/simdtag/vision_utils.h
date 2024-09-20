@@ -4,6 +4,8 @@
 
 #include <opencv2/core.hpp>
 
+#include "packed_binary_image.h"
+
 namespace simdtag {
 
 namespace {

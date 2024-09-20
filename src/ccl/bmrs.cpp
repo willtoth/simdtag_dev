@@ -15,6 +15,8 @@
 #include <hwy/highway.h>
 
 #include <opencv2/core.hpp>
+#include <opencv2/opencv.hpp>
+#include <sstream>
 
 #include "bit_scan_forward.h"
 #include "disjoint_set.h"
@@ -30,7 +32,7 @@ namespace HWY_NAMESPACE {
 
 inline void __MergeRows(uint64_t* __restrict dst, uint64_t* __restrict rowA,
                         const uint64_t* __restrict rowB, size_t double_word_width) {
-    constexpr hw::ScalableTag<uint8_t> d;
+    constexpr hw::ScalableTag<uint64_t> d;
     constexpr int N = hw::Lanes(d);
 
     uint8_t* ptr = (uint8_t*)dst;
@@ -38,10 +40,10 @@ inline void __MergeRows(uint64_t* __restrict dst, uint64_t* __restrict rowA,
 #if HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128
 // TODO: Restore old here...
 #else
-    for (auto i = 0; i < double_word_width * 8; i += N) {
-        const auto va = hw::Load(d, (uint8_t*)rowA);
-        const auto vb = hw::Load(d, (uint8_t*)rowB);
-        hw::Store(va | vb, d, (uint8_t*)dst);
+    for (auto i = 0; i < double_word_width; i += N) {
+        const auto va = hw::Load(d, rowA + i);
+        const auto vb = hw::Load(d, rowB + i);
+        hw::Store(va | vb, d, dst + i);
     }
 #endif
 }
@@ -101,7 +103,6 @@ BMRS::BMRS(size_t w, size_t h) : w_(w), h_(h), label_solver_(LabelSolverUpperBou
     int h_merge = h / 2 + h % 2;
 
     data_runs.Alloc(h_merge, w);
-
     data_runs_black.Alloc(h_merge, w);
 }
 
