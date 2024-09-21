@@ -28,7 +28,7 @@ unsigned UF::length_;
 
 static void BM_Bmrs(benchmark::State& state) {
     cv::Mat1b thresholdedOutput = cv::imread(IMAGE_PATH, cv::IMREAD_GRAYSCALE);
-    simdtag::BMRS ccl{thresholdedOutput};
+    simdtag::BMRS ccl{thresholdedOutput.size()};
 
     for (auto _ : state) {
         cv::Mat1i labels = cv::Mat1i{thresholdedOutput.size(), 0};
@@ -39,7 +39,7 @@ static void BM_Bmrs(benchmark::State& state) {
 static void BM_BmrsThreadSwap(benchmark::State& state) {
     cv::Mat1b thresholdedOutput = cv::imread(IMAGE_PATH, cv::IMREAD_GRAYSCALE);
     simdtag::AutoZerodMatPool<4> matPool(thresholdedOutput.size());
-    simdtag::BMRS ccl{thresholdedOutput};
+    simdtag::BMRS ccl{thresholdedOutput.size()};
 
     for (auto _ : state) {
         auto tmp = matPool.Aquire();
@@ -50,7 +50,7 @@ static void BM_BmrsThreadSwap(benchmark::State& state) {
 
 static void BM_BmrsDual(benchmark::State& state) {
     cv::Mat1b thresholdedOutput = cv::imread(IMAGE_PATH, cv::IMREAD_GRAYSCALE);
-    simdtag::BMRS ccl{thresholdedOutput};
+    simdtag::BMRS ccl{thresholdedOutput.size()};
 
     for (auto _ : state) {
         cv::Mat1i labels = cv::Mat1i{thresholdedOutput.size(), 0};
@@ -61,7 +61,7 @@ static void BM_BmrsDual(benchmark::State& state) {
 static void BM_BmrsDualThreadSwap(benchmark::State& state) {
     cv::Mat1b thresholdedOutput = cv::imread(IMAGE_PATH, cv::IMREAD_GRAYSCALE);
     simdtag::AutoZerodMatPool<4> matPool(thresholdedOutput.size());
-    simdtag::BMRS ccl{thresholdedOutput};
+    simdtag::BMRS ccl{thresholdedOutput.size()};
 
     for (auto _ : state) {
         auto tmp = matPool.Aquire();
@@ -147,7 +147,7 @@ static void PrintOutAllImages(benchmark::State& state) {
     {
         cv::Mat1b thresholdedOutput = cv::imread(IMAGE_PATH, cv::IMREAD_GRAYSCALE);
         cv::Mat1i labels = cv::Mat1i{thresholdedOutput.size(), 0};
-        simdtag::BMRS ccl{thresholdedOutput};
+        simdtag::BMRS ccl{thresholdedOutput.size()};
         ccl.PerformLabelingDual(thresholdedOutput, labels);
 
         std::stringstream filename;
@@ -161,7 +161,7 @@ static void PrintOutAllImages(benchmark::State& state) {
     {
         cv::Mat1b thresholdedOutput = cv::imread(IMAGE_PATH, cv::IMREAD_GRAYSCALE);
         cv::Mat1i labels = cv::Mat1i{thresholdedOutput.size(), 0};
-        simdtag::BMRS ccl{thresholdedOutput};
+        simdtag::BMRS ccl{thresholdedOutput.size()};
         ccl.PerformLabeling(thresholdedOutput, labels);
 
         std::stringstream filename;
@@ -175,7 +175,7 @@ static void PrintOutAllImages(benchmark::State& state) {
     {
         cv::Mat1b thresholdedOutput = cv::imread(IMAGE_PATH, cv::IMREAD_GRAYSCALE);
         cv::Mat1i labels = cv::Mat1i{thresholdedOutput.size(), 0};
-        simdtag::BMRS ccl{thresholdedOutput};
+        simdtag::BMRS ccl{thresholdedOutput.size()};
         ccl.PerformLabeling(thresholdedOutput, labels);
 
         std::stringstream filename;

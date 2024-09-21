@@ -25,7 +25,7 @@ TEST(Bmrs, TestCases) {
         std::cout << "name:" << test_name << std::endl;
         cv::Mat1b image = cv::imread(CclExpectedOuputs::GetImage(test_name), cv::IMREAD_GRAYSCALE);
         cv::Mat1i labels = cv::Mat1i{image.size(), 0};
-        simdtag::BMRS ccl{image};
+        simdtag::BMRS ccl{image.size()};
 
         ccl.PerformLabeling(image, labels);
 
@@ -54,7 +54,7 @@ TEST(Bmrs, DualLabel) {
     for (auto const& [test_name, expected_value] : CclExpectedOuputs::TestCases) {
         cv::Mat1b image = cv::imread(CclExpectedOuputs::GetImage(test_name), cv::IMREAD_GRAYSCALE);
         cv::Mat1i labels = cv::Mat1i{image.size(), 0};
-        simdtag::BMRS ccl{image};
+        simdtag::BMRS ccl{image.size()};
 
         ccl.PerformLabelingDual(image, labels);
 
@@ -72,7 +72,7 @@ TEST(Bmrs, DualLabel) {
                 cv::imread("/home/will/src/apriltag_playground/assets/yacclab/testimage.png",
                            cv::IMREAD_GRAYSCALE);
         cv::Mat1i labels = cv::Mat1i{image.size(), 0};
-        simdtag::BMRS ccl{image};
+        simdtag::BMRS ccl{image.size()};
 
         ccl.PerformLabelingDual(image, labels);
 

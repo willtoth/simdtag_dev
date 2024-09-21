@@ -41,7 +41,7 @@ class BMRS {
     };
 
    public:
-    BMRS(cv::Mat1b const& input);
+    BMRS(cv::Size size);
     BMRS(size_t w, size_t h);
     ~BMRS();
     void PerformLabeling(cv::Mat1b const& input, cv::Mat1i& labels);

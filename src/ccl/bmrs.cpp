@@ -96,7 +96,7 @@ static constexpr inline size_t LabelSolverUpperBound(size_t w, size_t h) {
 }
 }  // namespace
 
-BMRS::BMRS(cv::Mat1b const& input) : BMRS(input.cols, input.rows) {
+BMRS::BMRS(cv::Size size) : BMRS(size.width, size.height) {
 }
 
 BMRS::BMRS(size_t w, size_t h) : w_(w), h_(h), label_solver_(LabelSolverUpperBound<8>(w, h)) {
