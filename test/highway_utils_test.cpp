@@ -32,6 +32,8 @@ TEST(CarryShift, ButDoesItCarry) {
         hw::StoreU(vout, d, &result[i]);
     }
 
+    // TODO: This will fail with SIMD width less than 512 since the carry only
+    // happens within the loaded vector. Need to fix
     for (int i = 0; i < 8; i++) {
         EXPECT_EQ(result[i], output[i]);
     }

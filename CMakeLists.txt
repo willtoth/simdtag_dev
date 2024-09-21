@@ -130,24 +130,24 @@ endif()
 if(WITH_BENCHMARKS)
     add_executable(
         disjoint_set_bench
-        benchmark/ccl/disjoint_set.cpp
+        benchmark/disjoint_set.cpp
     )
     target_include_directories(disjoint_set_bench PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
     target_link_libraries(disjoint_set_bench ${COMMON_LINK_TARGETS} simdtag benchmark::benchmark)
     target_compile_definitions(disjoint_set_bench PUBLIC ${COMMON_TARGET_DEFINES})
 
     add_executable(
-        bmrs
-        benchmark/ccl/bmrs.cpp
+        ccl_bench
+        benchmark/ccl.cpp
         ${TRACY_SOURCE}
     )
-    target_compile_options(bmrs PUBLIC -save-temps ${COMMON_COMPILE_OPTIONS})
-    target_include_directories(bmrs PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
-    target_link_libraries(bmrs benchmark::benchmark ${COMMON_LINK_TARGETS} simdtag apriltag)
+    target_compile_options(ccl_bench PUBLIC -save-temps ${COMMON_COMPILE_OPTIONS})
+    target_include_directories(ccl_bench PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
+    target_link_libraries(ccl_bench benchmark::benchmark ${COMMON_LINK_TARGETS} simdtag apriltag)
 
     add_custom_target(assembly
-        COMMAND ${CMAKE_CXX_COMPILER} -S -fverbose-asm -g ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/ccl/bmrs.cpp -o ${CMAKE_BINARY_DIR}/bmrs.s
-        DEPENDS bmrs
+        COMMAND ${CMAKE_CXX_COMPILER} -S -fverbose-asm -g ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/ccl.cpp -o ${CMAKE_BINARY_DIR}/ccl.s
+        DEPENDS ccl_bench
     )
 endif()
 

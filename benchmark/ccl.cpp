@@ -1,5 +1,3 @@
-#include "ccl/bmrs.h"
-
 #include <benchmark/benchmark.h>
 
 #include <opencv2/opencv.hpp>
@@ -8,6 +6,7 @@
 #include <string>
 
 #include "apriltag.h"
+#include "ccl/bmrs.h"
 #include "common/image_u8.h"
 #include "common/pjpeg.h"
 #include "common/unionfind.h"
@@ -57,6 +56,18 @@ static void BM_BmrsDual(benchmark::State& state) {
     for (auto _ : state) {
         cv::Mat1i labels = cv::Mat1i{thresholdedOutput.size(), 0};
         ccl.PerformLabelingDual(thresholdedOutput, labels);
+    }
+}
+
+static void BM_BmrsDualThreadSwap(benchmark::State& state) {
+    cv::Mat1b thresholdedOutput = cv::imread(IMAGE_PATH, cv::IMREAD_GRAYSCALE);
+    simdtag::AutoZerodMatPool<4> matPool(thresholdedOutput.size());
+    simdtag::BMRS ccl{thresholdedOutput};
+
+    for (auto _ : state) {
+        auto tmp = matPool.Aquire();
+        ccl.PerformLabelingDual(thresholdedOutput, *tmp);
+        matPool.Release(std::move(tmp));
     }
 }
 
@@ -174,6 +185,10 @@ static void PrintOutAllImages(benchmark::State& state) {
         cv::imwrite(filename.str(), simdtag::CreateLabeledImage(labels, ccl.LabelCount()));
     }
     ////
+
+    // Without this, benchmark runs the whole routine
+    for (auto _ : state) {
+    }
 }
 
 extern "C" {
@@ -204,7 +219,7 @@ static void BM_AprilTagUnionFind(benchmark::State& state) {
     int w = im->width, h = im->height;
 
     image_u8_t* threshim = threshold(td, im);
-    image_u8_write_pnm(threshim, "debug_threshold.pnm");
+    // image_u8_write_pnm(threshim, "debug_threshold.pnm");
     int ts = threshim->stride;
 
     for (auto _ : state) {
@@ -216,6 +231,7 @@ BENCHMARK(BM_YacclabBmrs);
 BENCHMARK(BM_Bmrs);
 BENCHMARK(BM_BmrsThreadSwap);
 BENCHMARK(BM_BmrsDual);
+BENCHMARK(BM_BmrsDualThreadSwap);
 BENCHMARK(BM_YacclabSpaghetti);
 BENCHMARK(BM_YacclabSpaghettiDual);
 BENCHMARK(BM_AprilTagUnionFind);
