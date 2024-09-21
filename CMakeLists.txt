@@ -128,6 +128,7 @@ endif()
 #########################
 
 if(WITH_BENCHMARKS)
+    # TODO: Merge benchmark executables
     add_executable(
         disjoint_set_bench
         benchmark/disjoint_set.cpp
@@ -145,10 +146,20 @@ if(WITH_BENCHMARKS)
     target_include_directories(ccl_bench PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
     target_link_libraries(ccl_bench benchmark::benchmark ${COMMON_LINK_TARGETS} simdtag apriltag)
 
-    add_custom_target(assembly
-        COMMAND ${CMAKE_CXX_COMPILER} -S -fverbose-asm -g ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/ccl.cpp -o ${CMAKE_BINARY_DIR}/ccl.s
-        DEPENDS ccl_bench
+    # add_custom_target(assembly
+    #     COMMAND ${CMAKE_CXX_COMPILER} -S -fverbose-asm -g ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/ccl.cpp -o ${CMAKE_BINARY_DIR}/ccl.s
+    #     DEPENDS ccl_bench
+    # )
+
+    add_executable(
+        threshold_bench
+        benchmark/threshold.cpp
+        ${TRACY_SOURCE}
     )
+    target_compile_options(threshold_bench PUBLIC -save-temps ${COMMON_COMPILE_OPTIONS})
+    target_include_directories(threshold_bench PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
+    target_link_libraries(threshold_bench benchmark::benchmark ${COMMON_LINK_TARGETS} simdtag apriltag)
+
 endif()
 
 #########################
