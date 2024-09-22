@@ -21,7 +21,7 @@ find_package(HWY 1.2.0 REQUIRED)
 # Common compile options and include directories
 set(COMMON_COMPILE_OPTIONS "-std=c++20" "-fno-omit-frame-pointer" "-march=native")
 set(COMMON_INCLUDE_DIRS ${OpenCV_INCLUDE_DIRS} "include" "src")
-set(COMMON_LINK_TARGETS fmt::fmt hwy ${OpenCV_LIBS})
+set(COMMON_LINK_TARGETS fmt::fmt hwy ${OpenCV_LIBS} Halide::Halide)
 set(COMMON_TARGET_DEFINES CMAKE_PROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}" CMAKE_PROJECT_BUILD_DIR="${CMAKE_BINARY_DIR}")
 
 #########################
@@ -66,6 +66,14 @@ if(WITH_TESTS OR WITH_BENCHMARKS)
     )
     FetchContent_MakeAvailable(apriltag)
 endif()
+
+#########################
+# Build halide deps
+#########################
+
+include(cmake/Halide.cmake)
+add_halide_generator(halide_generators SOURCES src/halide/halide_threshold.cpp)
+add_halide_library(adaptive_threshold FROM halide_generators)
 
 #########################
 # Tracy
@@ -153,12 +161,12 @@ if(WITH_BENCHMARKS)
 
     add_executable(
         threshold_bench
-        benchmark/threshold.cpp
+        benchmark/threshold_bench.cpp
         ${TRACY_SOURCE}
     )
     target_compile_options(threshold_bench PUBLIC -save-temps ${COMMON_COMPILE_OPTIONS})
     target_include_directories(threshold_bench PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
-    target_link_libraries(threshold_bench benchmark::benchmark ${COMMON_LINK_TARGETS} simdtag apriltag)
+    target_link_libraries(threshold_bench benchmark::benchmark ${COMMON_LINK_TARGETS} simdtag apriltag adaptive_threshold)
 
 endif()
 

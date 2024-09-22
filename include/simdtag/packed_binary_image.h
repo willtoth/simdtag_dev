@@ -1,9 +1,6 @@
 #pragma once
 
 #include <fmt/format.h>
-#include <hwy/aligned_allocator.h>
-#include <hwy/contrib/algo/copy-inl.h>
-#include <hwy/contrib/algo/transform-inl.h>
 #include <hwy/highway.h>
 
 #include <algorithm>
@@ -42,7 +39,8 @@ inline void __ToBinaryAlignedPaddedMasked(uint64_t* __restrict dst, const uint8_
     uint8_t* ptr = (uint8_t*)dst;
 
     for (auto i = 0; i < len_bytes; i += N) {
-        const auto va = hw::LoadU(d, src + i);  // Can't assume source is aligned
+        // cv::Mat is allocated aligned
+        const auto va = hw::Load(d, src + i);
         ptr += hw::StoreMaskBits(d, va == vcompare, ptr);
     }
 }

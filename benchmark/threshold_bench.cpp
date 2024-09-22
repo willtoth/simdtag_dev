@@ -9,11 +9,28 @@
 #include "common/pjpeg.h"
 #include "common/unionfind.h"
 #include "common/workerpool.h"
+#include "threshold.h"
 
 #define IMAGE_PATH CMAKE_PROJECT_SOURCE_DIR "/assets/yacclab/testimage.jpg"
 
 extern "C" {
 extern image_u8_t* threshold(apriltag_detector_t* td, image_u8_t* im);
+}
+
+static void BM_Halide(benchmark::State& state) {
+    cv::Mat1b input = cv::imread(IMAGE_PATH, cv::IMREAD_GRAYSCALE);
+    cv::Mat1b output{input.size()};
+
+    for (auto _ : state) {
+        simdtag::AdaptiveThreshold(input, output);
+    }
+
+    simdtag::AdaptiveThreshold(input, output);
+
+    std::stringstream filename;
+    filename << CMAKE_PROJECT_BUILD_DIR << "/" << "AdaptiveThreholdOut" << ".jpg";
+
+    cv::imwrite(filename.str(), output);
 }
 
 static void BM_Apriltag(benchmark::State& state) {
@@ -42,6 +59,7 @@ static void BM_Apriltag(benchmark::State& state) {
     }
 }
 
+BENCHMARK(BM_Halide);
 BENCHMARK(BM_Apriltag);
 
 BENCHMARK_MAIN();
