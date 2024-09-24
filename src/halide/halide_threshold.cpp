@@ -9,13 +9,13 @@ class AdaptiveThreshold : public Halide::Generator<AdaptiveThreshold> {
     GeneratorParam<int> min_diff{"min_diff", 5};
     GeneratorParam<int> tilesize{"tilesize", 4};
 
-    void generate() {
-        Func minMaxTile("minMaxTile");
-        Func minMax("minMax");
-        Func blur("blur");
-        Var x("x"), y("y"), c("c");
-        Var xMinMaxTile("xMinMaxTile"), yMinMaxTile("yMinMaxTile"), cMinMaxTile("cMinMaxTile");
+    Var x{"x"}, y{"y"}, c{"c"};
+    Var xMinMaxTile{"xMinMaxTile"}, yMinMaxTile{"yMinMaxTile"}, cMinMaxTile{"cMinMaxTile"};
+    Func minMaxTile{"minMaxTile"};
+    Func minMax{"minMax"};
+    Func blur{"blur"};
 
+    void generate() {
         // TODO: Investigate the right boundary condition, this one does not _quite_
         // match the apriltag output.
         Func clamped = BoundaryConditions::repeat_edge(input);
@@ -37,17 +37,22 @@ class AdaptiveThreshold : public Halide::Generator<AdaptiveThreshold> {
         Expr max = blur(x / tilesize, y / tilesize, 0)[1];
         adaptive_threshold(x, y, c) = Halide::cast<uint8_t>(select(
                 max - min < min_diff, 127, select(input(x, y, c) > min + (max - min) / 2, 255, 0)));
+    }
 
-        /******** Schedule *************/
-        // TODO: Try auto-schedule
-        Var x_outer, y_outer, x_inner, y_inner;
-        adaptive_threshold.tile(x, y, x_outer, y_outer, x_inner, y_inner, 128, 64)
-                .vectorize(x_inner, 32);
+    void schedule() {
+        if (using_autoscheduler()) {
+            input.set_estimates({{640, 1600}, {480, 1200}, {1, 1}});
+            adaptive_threshold.set_estimates({{640, 1600}, {480, 1200}, {1, 1}});
+        } else {
+            Var x_outer, y_outer, x_inner, y_inner;
+            adaptive_threshold.tile(x, y, x_outer, y_outer, x_inner, y_inner, 128, 64)
+                    .vectorize(x_inner, 32);
 
-        // Vectorize by size of reduction domain
-        int tmp = tilesize;
-        minMaxTile.compute_root().vectorize(xMinMaxTile, tmp * tmp);
-        blur.store_root().compute_at(adaptive_threshold, x_outer).vectorize(xMinMaxTile, 9);
+            // Vectorize by size of reduction domain
+            int tmp = tilesize;
+            minMaxTile.compute_root().vectorize(xMinMaxTile, tmp * tmp);
+            blur.store_root().compute_at(adaptive_threshold, x_outer).vectorize(xMinMaxTile, 9);
+        }
     }
 };
 

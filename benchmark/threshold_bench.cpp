@@ -25,12 +25,12 @@ static void BM_Halide(benchmark::State& state) {
         simdtag::AdaptiveThreshold(input, output);
     }
 
-    simdtag::AdaptiveThreshold(input, output);
+    // simdtag::AdaptiveThreshold(input, output);
 
-    std::stringstream filename;
-    filename << CMAKE_PROJECT_BUILD_DIR << "/" << "AdaptiveThreholdOut" << ".jpg";
+    // std::stringstream filename;
+    // filename << CMAKE_PROJECT_BUILD_DIR << "/" << "AdaptiveThreholdOut" << ".jpg";
 
-    cv::imwrite(filename.str(), output);
+    // cv::imwrite(filename.str(), output);
 }
 
 static void BM_Apriltag(benchmark::State& state) {

@@ -88,11 +88,11 @@ void DisjointSet::__InternalCountLabel(uint32_t label) {
     label_count_[label]++;
 }
 
-size_t DisjointSet::GetNumLabels() {
+size_t DisjointSet::GetNumLabels() const {
     return num_labels_;
 }
 
-uint32_t DisjointSet::GetLabelCount(uint32_t label) {
+uint32_t DisjointSet::GetLabelCount(uint32_t label) const {
     return label_count_[label];
 }
 

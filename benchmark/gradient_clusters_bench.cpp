@@ -13,6 +13,7 @@
 #include "common/unionfind.h"
 #include "common/workerpool.h"
 #include "gradient_clusters.h"
+#include "simdtag/vision_utils.h"
 #include "threshold.h"
 
 #define IMAGE_PATH CMAKE_PROJECT_SOURCE_DIR "/assets/apriltag/tags_3_desk.jpg"
@@ -26,21 +27,13 @@ extern zarray_t* gradient_clusters(apriltag_detector_t* td, image_u8_t* threshim
                                    int ts, unionfind_t* uf);
 }
 
-static void BM_TryGc(benchmark::State& state) {
-    cv::Mat1b input = cv::imread(IMAGE_PATH, cv::IMREAD_GRAYSCALE);
+static void BM_TryGc() {  //(benchmark::State& state) {
+    cv::Mat1b input = cv::imread(IMAGE_PATH2, cv::IMREAD_GRAYSCALE);
     cv::Mat1i labels = cv::Mat1i{input.size(), 0};
     simdtag::BMRS ccl{input.size()};
-    ccl.PerformLabeling(input, labels);
-
-    for (auto _ : state) {
-        simdtag::GradientClusters(input, labels, ccl);
-    }
-    // simdtag::GradientClusters(input, labels, ccl);
-
-    // std::stringstream filename;
-    // filename << CMAKE_PROJECT_BUILD_DIR << "/" << "TestOUtput" << ".jpg";
-
-    // cv::imwrite(filename.str(), output);
+    ccl.PerformLabelingDual(input, labels);
+    simdtag::GradientClusters gc{input.size()};
+    gc.Perform(input, labels, ccl);
 }
 
 static void BM_GenerateTestData() {  //(benchmark::State& state) {
@@ -63,6 +56,27 @@ static void BM_GenerateTestData() {  //(benchmark::State& state) {
 
     // for (auto _ : state) {
     // }
+}
+
+static void BM_HalideGradientClusters(benchmark::State& state) {
+    cv::Mat1b input = cv::imread(IMAGE_PATH, cv::IMREAD_GRAYSCALE);
+    cv::Mat1b threshold = cv::Mat1b{input.size(), 0};
+    cv::Mat1i labels = cv::Mat1i{input.size(), 0};
+    simdtag::BMRS ccl{input.size()};
+    simdtag::GradientClusters gc{input.size()};
+
+    simdtag::AdaptiveThreshold(input, threshold);
+    ccl.PerformLabelingDual(threshold, labels);
+
+    cv::imwrite(CMAKE_PROJECT_BUILD_DIR "/BM_HalideGradientClustersThreshold.png", threshold);
+    cv::imwrite(CMAKE_PROJECT_BUILD_DIR "/BM_HalideGradientClustersLabeled.png",
+                simdtag::CreateLabeledImage(labels, ccl.LabelCount()));
+
+    for (auto _ : state) {
+        gc.Perform(threshold, labels, ccl);
+    }
+
+    gc.Perform(threshold, labels, ccl);
 }
 
 static void BM_AprilTagGradientClusters(benchmark::State& state) {
@@ -90,9 +104,9 @@ static void BM_AprilTagGradientClusters(benchmark::State& state) {
     }
 }
 
-// BENCHMARK(BM_AprilTagGradientClusters);
-// BENCHMARK(BM_GenerateTestData);
-BENCHMARK(BM_TryGc);
+BENCHMARK(BM_HalideGradientClusters);
+BENCHMARK(BM_AprilTagGradientClusters);
+
 BENCHMARK_MAIN();
 
 // int main() {

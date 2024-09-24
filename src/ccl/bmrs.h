@@ -46,7 +46,8 @@ class BMRS {
     ~BMRS();
     void PerformLabeling(cv::Mat1b const& input, cv::Mat1i& labels);
     void PerformLabelingDual(cv::Mat1b const& input, cv::Mat1i& labels);
-    int LabelCount();
+    int LabelCount() const;
+    uint32_t GetLabelCount(uint32_t) const;
 
    private:
     void FindRuns(const uint64_t* bits_start, const uint64_t* bits_flag, int height, int data_width,

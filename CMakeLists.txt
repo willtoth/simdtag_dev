@@ -74,9 +74,16 @@ endif()
 include(cmake/Halide.cmake)
 add_halide_generator(halide_generators SOURCES
                     src/halide/halide_threshold.cpp
-                    src/halide/halide_gradient_clusters.cpp)
-add_halide_library(adaptive_threshold FROM halide_generators)
-add_halide_library(halide_gradient_clusters FROM halide_generators)
+                    src/halide/halide_gradient_clusters.cpp
+                    LINK_LIBRARIES Halide::Halide)
+
+# TODO: Parallelism below is kept to 1 to try and better compare to apriltag
+add_halide_library(adaptive_threshold FROM halide_generators
+                   AUTOSCHEDULER Halide::Adams2019
+                   PARAMS autoscheduler.parallelism=1)
+add_halide_library(halide_gradient_clusters FROM halide_generators
+                   AUTOSCHEDULER Halide::Adams2019
+                   PARAMS autoscheduler.parallelism=1)
 
 #########################
 # Tracy

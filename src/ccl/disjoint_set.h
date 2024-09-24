@@ -28,8 +28,8 @@ class DisjointSet {
 
     void __InternalCountLabel(uint32_t label);
 
-    uint32_t GetLabelCount(uint32_t label);
-    size_t GetNumLabels();
+    uint32_t GetLabelCount(uint32_t label) const;
+    size_t GetNumLabels() const;
 
    private:
     uint32_t* tree_;

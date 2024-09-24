@@ -438,8 +438,12 @@ uint64_t BMRS::is_connected(const uint64_t* flag_bits, unsigned start, unsigned 
     return false;
 }
 
-int BMRS::LabelCount() {
+int BMRS::LabelCount() const {
     return n_labels_;
+}
+
+uint32_t BMRS::GetLabelCount(uint32_t label) const {
+    return label_solver_.GetLabelCount(label);
 }
 
 }  // namespace simdtag
