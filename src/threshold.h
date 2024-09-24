@@ -25,16 +25,4 @@ void AdaptiveThreshold(cv::Mat1b const& input, cv::Mat1b& output) {
     }
 }
 
-// class Threshold {
-//    public:
-//     Threshold(cv::Size size) : Threshold(size.width, size.height) {
-//     }
-
-//     Threshold(size_t width, size_t height) {
-//         // bits_ = new (std::align_val_t(64)) uint64_t[alloc_height * double_word_stride_];
-//     }
-
-//    private:
-// };
-
 }  // namespace simdtag

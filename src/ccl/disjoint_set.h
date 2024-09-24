@@ -26,10 +26,17 @@ class DisjointSet {
     uint32_t Merge(uint32_t i, uint32_t j);
     uint32_t Flatten();
 
+    void __InternalCountLabel(uint32_t label);
+
+    uint32_t GetLabelCount(uint32_t label);
+    size_t GetNumLabels();
+
    private:
     uint32_t* tree_;
+    uint32_t* label_count_;
     size_t length_;
     size_t size_;
+    size_t num_labels_;
 };
 
 }  // namespace simdtag

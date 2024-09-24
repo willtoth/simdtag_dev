@@ -1,4 +1,4 @@
-
+// Modified into a class, but most is taken from:
 // Copyright (c) 2020, the YACCLAB contributors, as
 // shown by the AUTHORS file. All rights reserved.
 //
@@ -14,8 +14,9 @@
 
 namespace simdtag {
 
-DisjointSet::DisjointSet(size_t max_size) : size_(max_size), length_(0) {
+DisjointSet::DisjointSet(size_t max_size) : size_(max_size), length_(0), num_labels_(0) {
     tree_ = new uint32_t[max_size];
+    label_count_ = new uint32_t[max_size];
 }
 
 DisjointSet::DisjointSet(const DisjointSet& other) {
@@ -42,6 +43,7 @@ void DisjointSet::Reset() {
 uint32_t DisjointSet::NewLabel() {
     assert(length_ < size_);
     tree_[length_] = length_;
+    label_count_[length_] = 0;
     return length_++;
 }
 
@@ -78,7 +80,20 @@ uint32_t DisjointSet::Flatten() {
             k = k + 1;
         }
     }
+    num_labels_ = k;
     return k;
+}
+
+void DisjointSet::__InternalCountLabel(uint32_t label) {
+    label_count_[label]++;
+}
+
+size_t DisjointSet::GetNumLabels() {
+    return num_labels_;
+}
+
+uint32_t DisjointSet::GetLabelCount(uint32_t label) {
+    return label_count_[label];
 }
 
 }  // namespace simdtag

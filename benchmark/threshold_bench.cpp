@@ -11,7 +11,7 @@
 #include "common/workerpool.h"
 #include "threshold.h"
 
-#define IMAGE_PATH CMAKE_PROJECT_SOURCE_DIR "/assets/yacclab/testimage.jpg"
+#define IMAGE_PATH CMAKE_PROJECT_SOURCE_DIR "/assets/apriltag/tags_3_desk.jpg"
 
 extern "C" {
 extern image_u8_t* threshold(apriltag_detector_t* td, image_u8_t* im);

@@ -15,6 +15,9 @@ class AdaptiveThreshold : public Halide::Generator<AdaptiveThreshold> {
         Func blur("blur");
         Var x("x"), y("y"), c("c");
         Var xMinMaxTile("xMinMaxTile"), yMinMaxTile("yMinMaxTile"), cMinMaxTile("cMinMaxTile");
+
+        // TODO: Investigate the right boundary condition, this one does not _quite_
+        // match the apriltag output.
         Func clamped = BoundaryConditions::repeat_edge(input);
 
         /******** Min max funtion ********/

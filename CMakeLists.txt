@@ -72,8 +72,11 @@ endif()
 #########################
 
 include(cmake/Halide.cmake)
-add_halide_generator(halide_generators SOURCES src/halide/halide_threshold.cpp)
+add_halide_generator(halide_generators SOURCES
+                    src/halide/halide_threshold.cpp
+                    src/halide/halide_gradient_clusters.cpp)
 add_halide_library(adaptive_threshold FROM halide_generators)
+add_halide_library(halide_gradient_clusters FROM halide_generators)
 
 #########################
 # Tracy
@@ -167,6 +170,15 @@ if(WITH_BENCHMARKS)
     target_compile_options(threshold_bench PUBLIC -save-temps ${COMMON_COMPILE_OPTIONS})
     target_include_directories(threshold_bench PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
     target_link_libraries(threshold_bench benchmark::benchmark ${COMMON_LINK_TARGETS} simdtag apriltag adaptive_threshold)
+
+    add_executable(
+        gradient_clusters_bench
+        benchmark/gradient_clusters_bench.cpp
+        ${TRACY_SOURCE}
+    )
+    target_compile_options(gradient_clusters_bench PUBLIC -save-temps ${COMMON_COMPILE_OPTIONS})
+    target_include_directories(gradient_clusters_bench PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
+    target_link_libraries(gradient_clusters_bench benchmark::benchmark ${COMMON_LINK_TARGETS} simdtag apriltag adaptive_threshold halide_gradient_clusters)
 
 endif()
 

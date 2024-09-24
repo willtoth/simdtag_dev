@@ -164,8 +164,12 @@ void BMRS::PerformLabeling(cv::Mat1b const& input, cv::Mat1i& labels) {
             int label = label_solver_.GetLabel(runs->label);
 
             for (int j = start_pos; j < end_pos; j++) {
-                if (data_u[j >> 6] & (1ull << (j & 0x3F))) labels_u[j] = label;
-                if (data_d[j >> 6] & (1ull << (j & 0x3F))) labels_d[j] = label;
+                if (data_u[j >> 6] & (1ull << (j & 0x3F))) {
+                    labels_u[j] = label;
+                }
+                if (data_d[j >> 6] & (1ull << (j & 0x3F))) {
+                    labels_d[j] = label;
+                }
             }
         }
     }
@@ -239,8 +243,18 @@ void BMRS::PerformLabelingDual(cv::Mat1b const& input, cv::Mat1i& labels) {
                 int label = label_solver_.GetLabel(runs->label);
 
                 for (int j = start_pos; j < end_pos; j++) {
-                    if (data_u[j >> 6] & (1ull << (j & 0x3F))) labels_u[j] = label;
-                    if (data_d[j >> 6] & (1ull << (j & 0x3F))) labels_d[j] = label;
+                    if (data_u[j >> 6] & (1ull << (j & 0x3F))) {
+                        labels_u[j] = label;
+                        // TODO: Make this faster!
+                        // Can we track this as we process instead of during assignment
+                        // then combine as we merge?
+                        // can we count 1's or something?
+                        label_solver_.__InternalCountLabel(label);
+                    }
+                    if (data_d[j >> 6] & (1ull << (j & 0x3F))) {
+                        labels_d[j] = label;
+                        label_solver_.__InternalCountLabel(label);
+                    }
                 }
             }
         }
