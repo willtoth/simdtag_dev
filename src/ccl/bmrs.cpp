@@ -83,6 +83,52 @@ inline void __GenerateFlagBits(PackedBinaryImage& data_compressed, PackedBinaryI
     }
 }
 
+inline void __LabelImage(cv::Mat1i& labels, PackedBinaryImage& data_compressed,
+                         BMRS::Runs& data_runs, DisjointSet& label_solver, size_t h_merge) {
+    constexpr hw::ScalableTag<uint8_t> d;
+    constexpr int N = hw::Lanes(d);
+
+    // New version (uses 1-byte per pixel input)
+    BMRS::Run* runs = data_runs.runs;
+    for (int i = 0; i < h_merge; i++) {
+        const uint64_t* const data_u =
+                data_compressed[0] + data_compressed.DoubleWordStride() * 2 * i;
+        const uint64_t* const data_d = data_u + data_compressed.DoubleWordStride();
+        unsigned* const labels_u = labels.ptr<unsigned>(2 * i);
+        unsigned* const labels_d = labels.ptr<unsigned>(2 * i + 1);
+
+#if 1  // HWY_TARGET == HWY_SCALAR || HWY_TARGET == HWY_EMU128
+        for (;; runs++) {
+            unsigned short start_pos = runs->start_pos;
+            if (start_pos == 0xFFFF) {
+                runs++;
+                break;
+            }
+            unsigned short end_pos = runs->end_pos;
+            int label = label_solver.GetLabel(runs->label);
+            for (int j = start_pos; j < end_pos; j++) {
+                if (data_u[j >> 6] & (1ull << (j & 0x3F))) {
+                    labels_u[j] = label;
+                    label_solver.__InternalCountLabel(label);
+                }
+                if (data_d[j >> 6] & (1ull << (j & 0x3F))) {
+                    labels_d[j] = label;
+                    label_solver.__InternalCountLabel(label);
+                }
+            }
+        }
+#else
+        int label = label_solver.GetLabel(runs->label);
+
+        for (auto i = 0; i < data_compressed.Width(); i += N) {
+            const auto va = hw::Set(d, label);
+            const auto v_data_u = hw::Load(d, labels_u[i]);
+            const auto v_data_d = hw::Load(d, labels_d[i]);
+        }
+#endif
+    }
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 HWY_AFTER_NAMESPACE();
@@ -144,37 +190,7 @@ void BMRS::PerformLabeling(cv::Mat1b const& input, cv::Mat1i& labels) {
     FindRuns(data_merged[0], data_flags[0], h_merge, data_width, data_compressed.DoubleWordStride(),
              data_runs.runs);
     n_labels_ = label_solver_.Flatten();
-
-    // New version (uses 1-byte per pixel input)
-    Run* runs = data_runs.runs;
-    for (int i = 0; i < h_merge; i++) {
-        const uint64_t* const data_u =
-                data_compressed[0] + data_compressed.DoubleWordStride() * 2 * i;
-        const uint64_t* const data_d = data_u + data_compressed.DoubleWordStride();
-        unsigned* const labels_u = labels.ptr<unsigned>(2 * i);
-        unsigned* const labels_d = labels.ptr<unsigned>(2 * i + 1);
-
-        for (;; runs++) {
-            unsigned short start_pos = runs->start_pos;
-            if (start_pos == 0xFFFF) {
-                runs++;
-                break;
-            }
-            unsigned short end_pos = runs->end_pos;
-            int label = label_solver_.GetLabel(runs->label);
-
-            for (int j = start_pos; j < end_pos; j++) {
-                if (data_u[j >> 6] & (1ull << (j & 0x3F))) {
-                    labels_u[j] = label;
-                    label_solver_.__InternalCountLabel(label);
-                }
-                if (data_d[j >> 6] & (1ull << (j & 0x3F))) {
-                    labels_d[j] = label;
-                    label_solver_.__InternalCountLabel(label);
-                }
-            }
-        }
-    }
+    HWY_NAMESPACE::__LabelImage(labels, data_compressed, data_runs, label_solver_, h_merge);
 }
 
 void BMRS::PerformLabelingDual(cv::Mat1b const& input, cv::Mat1i& labels) {

@@ -26,7 +26,7 @@ class DisjointSet {
     uint32_t Merge(uint32_t i, uint32_t j);
     uint32_t Flatten();
 
-    void __InternalCountLabel(uint32_t label);
+    void __InternalCountLabel(uint32_t label, uint32_t count = 1);
 
     uint32_t GetLabelCount(uint32_t label) const;
     size_t GetNumLabels() const;

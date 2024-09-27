@@ -59,12 +59,11 @@ HWY_AFTER_NAMESPACE();
 class GradientClusters {
    private:
     // TODO: This will be a planar layout, experiment with interleaved and linear
-    Halide::Runtime::Buffer<uint64_t> sparse_gradient_points_;
+    Halide::Runtime::Buffer<uint32_t> sparse_gradient_points_;
     uint64_t* compressed_gradient_points_;
 
    public:
-    GradientClusters(cv::Size size)
-        : sparse_gradient_points_{std::vector{size.width * size.height * 4 + 1}} {
+    GradientClusters(cv::Size size) : sparse_gradient_points_{size.width, size.height, 4} {
         compressed_gradient_points_ =
                 new (std::align_val_t(64)) uint64_t[size.width * size.height * 4];
     }
@@ -83,7 +82,7 @@ class GradientClusters {
         int error =
                 halide_gradient_clusters(halide_threshold, halide_labels, sparse_gradient_points_);
 
-        // size_t double_words = sparse_gradient_points_.size_in_bytes() / 8;
+        // size_t double_words = sparse_gradient_points_.size_in_bytes() / 4;
 
         // int cnt = HWY_NAMESPACE::__CopyIf(compressed_gradient_points_,
         //                                   sparse_gradient_points_.data(), double_words);
@@ -96,16 +95,15 @@ class GradientClusters {
             return;
         }
 
-        // sparse_gradient_points_.for_each_value([](uint64_t& value) {
-        // for (int i = 0; i < cnt; i++) {
-        //     uint64_t value = compressed_gradient_points_[i];
-        //     int rep0 = value >> 44;
-        //     int rep1 = (value >> 24) & 0xFFFFF;
-        //     int x = value >> 13 & 0x7FF;
-        //     int y = value >> 2 & 0x7FF;
+        // sparse_gradient_points_.for_each_value([](uint32_t& value) {
+        //     if (value == 0) {
+        //         return;
+        //     }
+        //     int x = (value >> 20) & 0x7FF;
+        //     int y = (value >> 8) & 0x7FF;
         //     int dir = value & 3;
-        //     fmt::print("{{{}-{}, {}x{} : {} }} ", rep0, rep1, x, y, dir);
-        // }
+        //     fmt::print("{{{}x{} : {} }} ", x, y, dir);
+        // });
     }
 };
 

@@ -84,8 +84,8 @@ uint32_t DisjointSet::Flatten() {
     return k;
 }
 
-void DisjointSet::__InternalCountLabel(uint32_t label) {
-    label_count_[label]++;
+void DisjointSet::__InternalCountLabel(uint32_t label, uint32_t count) {
+    label_count_[label] += count;
 }
 
 size_t DisjointSet::GetNumLabels() const {
