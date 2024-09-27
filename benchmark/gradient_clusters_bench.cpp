@@ -25,6 +25,12 @@ extern unionfind_t* connected_components(apriltag_detector_t* td, image_u8_t* th
                                          int h, int ts);
 extern zarray_t* gradient_clusters(apriltag_detector_t* td, image_u8_t* threshim, int w, int h,
                                    int ts, unionfind_t* uf);
+
+int32_t __TEST123(int32_t x, int32_t y) {
+    static int32_t i = 1;
+    // fmt::print("{},{} - {}  ", x, y, i);
+    return i++;
+}
 }
 
 static void BM_TryGc() {  //(benchmark::State& state) {
@@ -104,13 +110,16 @@ static void BM_AprilTagGradientClusters(benchmark::State& state) {
     }
 }
 
+#if 1
 BENCHMARK(BM_HalideGradientClusters);
 BENCHMARK(BM_AprilTagGradientClusters);
 
 BENCHMARK_MAIN();
 
-// int main() {
-//     // BM_GenerateTestData();
-//     BM_TryGc();
-//     return 0;
-// }
+#else
+int main() {
+    // BM_GenerateTestData();
+    BM_TryGc();
+    return 0;
+}
+#endif

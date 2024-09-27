@@ -80,10 +80,13 @@ add_halide_generator(halide_generators SOURCES
 # TODO: Parallelism below is kept to 1 to try and better compare to apriltag
 add_halide_library(adaptive_threshold FROM halide_generators
                    AUTOSCHEDULER Halide::Adams2019
-                   PARAMS autoscheduler.parallelism=1)
+                   PARAMS autoscheduler.parallelism=1
+                   COMPILER_LOG yes STMT_HTML yes)
+
 add_halide_library(halide_gradient_clusters FROM halide_generators
                    AUTOSCHEDULER Halide::Adams2019
-                   PARAMS autoscheduler.parallelism=1)
+                   PARAMS autoscheduler.parallelism=1
+                   COMPILER_LOG yes STMT_HTML yes)
 
 #########################
 # Tracy

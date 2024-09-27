@@ -4,6 +4,7 @@
 
 #include <new>
 #include <opencv2/core.hpp>
+#include <vector>
 
 #include "HalideBuffer.h"
 #include "halide_gradient_clusters.h"
@@ -32,14 +33,24 @@ namespace simdtag {
 HWY_BEFORE_NAMESPACE();
 namespace HWY_NAMESPACE {
 
-inline int __CopyIf(uint64_t* __restrict dst, const uint64_t* __restrict src, size_t double_words) {
+inline int __CopyIf(uint64_t* __restrict dst, const uint64_t* __restrict src, size_t count) {
     constexpr hw::ScalableTag<uint64_t> d;
     constexpr int N = hw::Lanes(d);
 
-    uint64_t* end = hw::CopyIf(d, src, double_words, dst,
-                               [](const auto d, const auto v) { return v == hw::Zero(d); });
+    // uint64_t* end = hw::CopyIf(d, src, double_words, dst,
+    //                            [](const auto d, const auto v) {
+    //                             return v == hw::Zero(d);
+    //                             });
+    uint64_t* __restrict ptr = dst;
+    size_t idx = 0;
+    if (count >= N) {
+        for (; idx <= count - N; idx += N) {
+            auto v = Load(d, src + idx);
+            ptr += CompressBlendedStore(v, v != hw::Zero(d), d, ptr);
+        }
+    }
 
-    return (int)(end - dst);
+    return (int)(ptr - dst);
 }
 
 }  // namespace HWY_NAMESPACE
@@ -52,7 +63,8 @@ class GradientClusters {
     uint64_t* compressed_gradient_points_;
 
    public:
-    GradientClusters(cv::Size size) : sparse_gradient_points_{size.width, size.height, 4} {
+    GradientClusters(cv::Size size)
+        : sparse_gradient_points_{std::vector{size.width * size.height * 4 + 1}} {
         compressed_gradient_points_ =
                 new (std::align_val_t(64)) uint64_t[size.width * size.height * 4];
     }
@@ -71,12 +83,12 @@ class GradientClusters {
         int error =
                 halide_gradient_clusters(halide_threshold, halide_labels, sparse_gradient_points_);
 
-        volatile size_t double_words = sparse_gradient_points_.size_in_bytes() / 8;
+        // size_t double_words = sparse_gradient_points_.size_in_bytes() / 8;
 
         // int cnt = HWY_NAMESPACE::__CopyIf(compressed_gradient_points_,
         //                                   sparse_gradient_points_.data(), double_words);
 
-        // hw::VQSortStatic(sparse_gradient_points_.data(), double_words, hwy::SortAscending{});
+        // hw::VQSortStatic(compressed_gradient_points_, cnt, hwy::SortDescending{});
 
         [[unlikely]]
         if (error) {
@@ -85,16 +97,15 @@ class GradientClusters {
         }
 
         // sparse_gradient_points_.for_each_value([](uint64_t& value) {
-        //     if (value == 0) {
-        //         return;
-        //     }
+        // for (int i = 0; i < cnt; i++) {
+        //     uint64_t value = compressed_gradient_points_[i];
         //     int rep0 = value >> 44;
         //     int rep1 = (value >> 24) & 0xFFFFF;
         //     int x = value >> 13 & 0x7FF;
         //     int y = value >> 2 & 0x7FF;
         //     int dir = value & 3;
         //     fmt::print("{{{}-{}, {}x{} : {} }} ", rep0, rep1, x, y, dir);
-        // });
+        // }
     }
 };
 

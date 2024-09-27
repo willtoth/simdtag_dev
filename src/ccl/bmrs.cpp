@@ -166,9 +166,11 @@ void BMRS::PerformLabeling(cv::Mat1b const& input, cv::Mat1i& labels) {
             for (int j = start_pos; j < end_pos; j++) {
                 if (data_u[j >> 6] & (1ull << (j & 0x3F))) {
                     labels_u[j] = label;
+                    label_solver_.__InternalCountLabel(label);
                 }
                 if (data_d[j >> 6] & (1ull << (j & 0x3F))) {
                     labels_d[j] = label;
+                    label_solver_.__InternalCountLabel(label);
                 }
             }
         }
@@ -439,7 +441,7 @@ uint64_t BMRS::is_connected(const uint64_t* flag_bits, unsigned start, unsigned 
 }
 
 int BMRS::LabelCount() const {
-    return n_labels_;
+    return n_labels_ - 1;
 }
 
 uint32_t BMRS::GetLabelCount(uint32_t label) const {
