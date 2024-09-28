@@ -1,5 +1,7 @@
 #pragma once
 
+#define EMH_EXT
+
 #include <fmt/format.h>
 
 #include <new>
@@ -8,6 +10,7 @@
 
 #include "HalideBuffer.h"
 #include "halide_gradient_clusters.h"
+#include "third_party/emhash/hash_table7.hpp"
 
 // clang-format off
 
@@ -20,10 +23,23 @@
 
 // clang-format on
 
-static simdtag::BMRS const* __ccl = nullptr;
+using HashMapType = emhash7::HashMap<uint32_t, std::vector<uint32_t>>;
 
-extern "C" uint32_t __CCL_GetLabelCount(uint32_t x) {
-    return __ccl->GetLabelCount(x);
+extern "C" int32_t __HashMapInsert(void* hashmap, uint32_t hash, uint32_t value) {
+    if (value == 0) {
+        return 0;
+    }
+
+    HashMapType* m = (HashMapType*)hashmap;
+    auto* pvalue = m->try_get(hash);
+    if (pvalue) {
+        pvalue->push_back(value);
+    } else {
+        std::vector<uint32_t> storage;
+        storage.reserve(2048);
+        m->emplace_unique(hash, std::move(storage));
+    }
+    return 0;
 }
 
 namespace hw = hwy::HWY_NAMESPACE;
@@ -59,8 +75,9 @@ HWY_AFTER_NAMESPACE();
 class GradientClusters {
    private:
     // TODO: This will be a planar layout, experiment with interleaved and linear
-    Halide::Runtime::Buffer<uint32_t> sparse_gradient_points_;
+    Halide::Runtime::Buffer<uint64_t> sparse_gradient_points_;
     uint64_t* compressed_gradient_points_;
+    HashMapType hash_map_{1000000};
 
    public:
     GradientClusters(cv::Size size) : sparse_gradient_points_{size.width, size.height, 4} {
@@ -77,23 +94,33 @@ class GradientClusters {
         Halide::Runtime::Buffer<int> halide_labels = Halide::Runtime::Buffer<int>::make_interleaved(
                 (int*)labels.data, labels.cols, labels.rows, labels.channels());
 
-        __ccl = &connected_components;
-
         int error =
                 halide_gradient_clusters(halide_threshold, halide_labels, sparse_gradient_points_);
 
-        // size_t double_words = sparse_gradient_points_.size_in_bytes() / 4;
+        size_t double_words = sparse_gradient_points_.size_in_bytes() / 8;
 
         // int cnt = HWY_NAMESPACE::__CopyIf(compressed_gradient_points_,
         //                                   sparse_gradient_points_.data(), double_words);
 
-        // hw::VQSortStatic(compressed_gradient_points_, cnt, hwy::SortDescending{});
+        hw::VQSortStatic(sparse_gradient_points_.data(), double_words, hwy::SortDescending{});
 
         [[unlikely]]
         if (error) {
             fmt::println("Halide returned an error: %d\n", error);
             return;
         }
+
+        // for (auto& k : hash_map_) {
+        //     fmt::print("{}: ", k.first);
+
+        //     for (auto& value : k.second) {
+        //         int x = (value >> 20) & 0x7FF;
+        //         int y = (value >> 8) & 0x7FF;
+        //         int dir = value & 3;
+        //         fmt::print("{{{}x{} : {} }} ", x, y, dir);
+        //     }
+        //     fmt::println("");
+        // }
 
         // sparse_gradient_points_.for_each_value([](uint32_t& value) {
         //     if (value == 0) {
