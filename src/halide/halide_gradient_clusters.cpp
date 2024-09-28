@@ -11,8 +11,8 @@ class GradientClusters : public Halide::Generator<GradientClusters> {
    public:
     Input<Buffer<uint8_t, 3>> input{"input"};
     Input<Buffer<int32_t, 3>> labels{"labels"};
-    // Input<void*> hash_map{"hashmap"};
-    Output<Buffer<uint64_t, 3>> gradient_clusters{"gradient_clusters"};
+    Input<void*> hash_map{"hashmap"};
+    Output<Buffer<uint32_t, 3>> gradient_clusters{"gradient_clusters"};
     // Output<Buffer<uint64_t, 1>> output{"output"};
     Var x{"x"}, y{"y"}, c{"c"};
 
@@ -39,7 +39,7 @@ class GradientClusters : public Halide::Generator<GradientClusters> {
         RDom r2{-1, 3, 0, 2};
         r2.where(!(r2.x == -1 && r2.y == 0));
 
-        gradient_clusters(x, y, c) = cast<uint64_t>(0);
+        gradient_clusters(x, y, c) = cast<uint32_t>(0);
 
         Expr rep0 = cast<uint64_t>(clamped_labels(x, y, 0));
         Expr rep1 = cast<uint64_t>(clamped_labels(x + r2.x, y + r2.y, 0));
@@ -49,11 +49,12 @@ class GradientClusters : public Halide::Generator<GradientClusters> {
         Expr hash_value_caldidate1 = (rep0 << 32) | rep1;
         Expr hash_value_caldidate2 = rep0 | (rep1 << 32);
         Expr hash_value =
-                (Expr((uint64_t)2654435761) * min(hash_value_caldidate1, hash_value_caldidate2)) &
-                Expr((uint64_t)0xFFFFFFFF);
-        Expr value_expr = hash_value | cast<uint64_t>(x) << 20 | cast<uint64_t>(y) << 8 |
-                          cast<uint64_t>(1 + r2.x + r2.y);
-        Expr value = select(v0 != 127 && v0 + v1 == 255, value_expr, cast<uint64_t>(0));
+                (Expr((uint64_t)2654435761) * min(hash_value_caldidate1, hash_value_caldidate2)) >>
+                32;
+        Expr value =
+                cast<uint32_t>(x) << 20 | cast<uint32_t>(y) << 8 | cast<uint32_t>(1 + r2.x + r2.y);
+        // Expr value = select(v0 != 127 && v0 + v1 == 255, value_expr, cast<uint32_t>(0));
+        r2.where(v0 != 127 && v0 + v1 == 255);
         //__HashMapInsert(hash_map, cast<uint32_t>(hash_value), value);
         //__TEST123(r.x, r.y);
 
@@ -63,8 +64,8 @@ class GradientClusters : public Halide::Generator<GradientClusters> {
         // DO_CONN(-1, 1, 3);
 
         // gradient_clusters(x, y, c) = mux(c, {value_0, value_1, value_2, value_3});
-        gradient_clusters(x, y, 1 + r2.x + r2.y) = value;
-        // cast<uint32_t>(__HashMapInsert(hash_map, cast<uint32_t>(hash_value), value));
+        gradient_clusters(x, y, 1 + r2.x + r2.y) =
+                cast<uint32_t>(__HashMapInsert(hash_map, cast<uint32_t>(hash_value), value));
         // output(clamp(__TEST123(r.x, r.y), 1, input.width() * input.height() * 4)) = value_0;
     }
 
@@ -73,8 +74,8 @@ class GradientClusters : public Halide::Generator<GradientClusters> {
             input.set_estimates({{640, 1600}, {480, 1200}, {1, 1}});
             labels.set_estimates({{640, 1600}, {480, 1200}, {1, 1}});
             gradient_clusters.set_estimates({{640, 1600}, {480, 1200}, {4, 4}});
-            // hash_map.set_estimate(nullptr);
-            //  output.set_estimates({{640 * 480 * 4, 1200 * 1600 * 4}});
+            hash_map.set_estimate(nullptr);
+            // output.set_estimates({{640 * 480 * 4, 1200 * 1600 * 4}});
         } else {
             // auto pipeline = get_pipeline();
             // Func output = pipeline.get_func(8);

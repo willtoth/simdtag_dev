@@ -75,7 +75,7 @@ HWY_AFTER_NAMESPACE();
 class GradientClusters {
    private:
     // TODO: This will be a planar layout, experiment with interleaved and linear
-    Halide::Runtime::Buffer<uint64_t> sparse_gradient_points_;
+    Halide::Runtime::Buffer<uint32_t> sparse_gradient_points_;
     uint64_t* compressed_gradient_points_;
     HashMapType hash_map_{1000000};
 
@@ -94,15 +94,15 @@ class GradientClusters {
         Halide::Runtime::Buffer<int> halide_labels = Halide::Runtime::Buffer<int>::make_interleaved(
                 (int*)labels.data, labels.cols, labels.rows, labels.channels());
 
-        int error =
-                halide_gradient_clusters(halide_threshold, halide_labels, sparse_gradient_points_);
+        int error = halide_gradient_clusters(halide_threshold, halide_labels, &hash_map_,
+                                             sparse_gradient_points_);
 
-        size_t double_words = sparse_gradient_points_.size_in_bytes() / 8;
+        // size_t double_words = sparse_gradient_points_.size_in_bytes() / 4;
 
         // int cnt = HWY_NAMESPACE::__CopyIf(compressed_gradient_points_,
         //                                   sparse_gradient_points_.data(), double_words);
 
-        hw::VQSortStatic(sparse_gradient_points_.data(), double_words, hwy::SortDescending{});
+        // hw::VQSortStatic(compressed_gradient_points_, cnt, hwy::SortDescending{});
 
         [[unlikely]]
         if (error) {
