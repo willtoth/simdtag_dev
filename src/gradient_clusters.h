@@ -25,7 +25,7 @@
 
 using HashMapType = emhash7::HashMap<uint32_t, std::vector<uint32_t>>;
 
-extern "C" int32_t __HashMapInsert(void* hashmap, uint32_t hash, uint32_t value) {
+extern "C" uint32_t __HashMapInsert(void* hashmap, uint32_t hash, uint32_t value) {
     if (value == 0) {
         return 0;
     }
@@ -75,7 +75,7 @@ HWY_AFTER_NAMESPACE();
 class GradientClusters {
    private:
     // TODO: This will be a planar layout, experiment with interleaved and linear
-    Halide::Runtime::Buffer<uint32_t> sparse_gradient_points_;
+    Halide::Runtime::Buffer<uint64_t> sparse_gradient_points_;
     uint64_t* compressed_gradient_points_;
     HashMapType hash_map_{1000000};
 
@@ -97,12 +97,12 @@ class GradientClusters {
         int error = halide_gradient_clusters(halide_threshold, halide_labels, &hash_map_,
                                              sparse_gradient_points_);
 
-        // size_t double_words = sparse_gradient_points_.size_in_bytes() / 4;
+        size_t double_words = sparse_gradient_points_.size_in_bytes() / 8;
 
-        // int cnt = HWY_NAMESPACE::__CopyIf(compressed_gradient_points_,
-        //                                   sparse_gradient_points_.data(), double_words);
+        int cnt = HWY_NAMESPACE::__CopyIf(compressed_gradient_points_,
+                                          sparse_gradient_points_.data(), double_words);
 
-        // hw::VQSortStatic(compressed_gradient_points_, cnt, hwy::SortDescending{});
+        hw::VQSortStatic(compressed_gradient_points_, cnt, hwy::SortDescending{});
 
         [[unlikely]]
         if (error) {

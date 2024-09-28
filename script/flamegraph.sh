@@ -33,7 +33,7 @@ mkdir -p "${OUTPUT_DIR}"
 
 # Run the benchmark with perf
 echo "Running perf on ${BENCHMARK_EXECUTABLE}..."
-perf record -F 100000 -a -g -- "${BENCHMARK_EXECUTABLE}"
+perf record -F max -a --call-graph fp,256 -- "${BENCHMARK_EXECUTABLE}"
 
 # Generate the flame graph
 echo "Generating flame graph..."
