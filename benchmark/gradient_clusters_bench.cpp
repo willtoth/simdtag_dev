@@ -79,10 +79,10 @@ static void BM_HalideGradientClusters(benchmark::State& state) {
                 simdtag::CreateLabeledImage(labels, ccl.LabelCount()));
 
     for (auto _ : state) {
-        gc.Perform(threshold, labels, ccl);
+        gc.PerformHalide(threshold, labels, ccl);
     }
 
-    gc.Perform(threshold, labels, ccl);
+    gc.PerformHalide(threshold, labels, ccl);
 }
 
 static void BM_AprilTagGradientClusters(benchmark::State& state) {

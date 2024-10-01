@@ -13,13 +13,14 @@ set(CMAKE_CXX_FLAGS_RELEASE        "-O3")
 option(WITH_TESTS "Build unit tests" ON)
 option(WITH_BENCHMARKS "Compare various methods to eachother" ON)
 option(WITH_TRACING "Build with tracy enabled for profiling" OFF)
+option(WITH_PERF "Add test runs for more detailed performance profiling" ON)
 
 project(evetest)
 find_package(OpenCV REQUIRED)
 find_package(HWY 1.2.0 REQUIRED)
 
 # Common compile options and include directories
-set(COMMON_COMPILE_OPTIONS "-std=c++20" "-fno-omit-frame-pointer" "-march=native")
+set(COMMON_COMPILE_OPTIONS "-std=c++20" "-fno-omit-frame-pointer" "-march=native") # "-march=native" "-mavx2"
 set(COMMON_INCLUDE_DIRS ${OpenCV_INCLUDE_DIRS} "include" "src")
 set(COMMON_LINK_TARGETS fmt::fmt hwy ${OpenCV_LIBS} Halide::Halide)
 set(COMMON_TARGET_DEFINES CMAKE_PROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}" CMAKE_PROJECT_BUILD_DIR="${CMAKE_BINARY_DIR}")
@@ -139,7 +140,7 @@ if(WITH_TESTS)
 
     add_executable(simdtag_test ${test_source})
     target_compile_options(simdtag_test PUBLIC ${COMMON_COMPILE_OPTIONS})
-    target_link_libraries(simdtag_test ${COMMON_LINK_TARGETS} GTest::gtest_main simdtag)
+    target_link_libraries(simdtag_test ${COMMON_LINK_TARGETS} GTest::gtest_main simdtag halide_gradient_clusters)
     target_compile_definitions(simdtag_test PUBLIC ${COMMON_TARGET_DEFINES})
     target_include_directories(simdtag_test PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
 
@@ -191,6 +192,36 @@ if(WITH_BENCHMARKS)
     target_compile_options(gradient_clusters_bench PUBLIC -save-temps ${COMMON_COMPILE_OPTIONS})
     target_include_directories(gradient_clusters_bench PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
     target_link_libraries(gradient_clusters_bench benchmark::benchmark ${COMMON_LINK_TARGETS} simdtag apriltag adaptive_threshold halide_gradient_clusters)
+
+endif()
+
+
+#########################
+# Perf
+#########################
+if(WITH_PERF)
+
+add_executable(
+    gradient_clusters_perf_halide
+    benchmark/gradient_clusters_perf.cpp
+)
+target_compile_options(gradient_clusters_perf_halide PUBLIC ${COMMON_COMPILE_OPTIONS})
+target_include_directories(gradient_clusters_perf_halide PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
+target_link_libraries(gradient_clusters_perf_halide ${COMMON_LINK_TARGETS} simdtag apriltag adaptive_threshold halide_gradient_clusters)
+target_compile_definitions(gradient_clusters_perf_halide PUBLIC ${COMMON_TARGET_DEFINES}
+        PERF_ITERATION=30
+        HALIDE_GRADIENT_CLUSTERS=TRUE)
+
+add_executable(
+    gradient_clusters_perf_apriltag
+    benchmark/gradient_clusters_perf.cpp
+)
+target_compile_options(gradient_clusters_perf_apriltag PUBLIC ${COMMON_COMPILE_OPTIONS})
+target_include_directories(gradient_clusters_perf_apriltag PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
+target_link_libraries(gradient_clusters_perf_apriltag ${COMMON_LINK_TARGETS} simdtag apriltag adaptive_threshold)
+target_compile_definitions(gradient_clusters_perf_apriltag PUBLIC ${COMMON_TARGET_DEFINES}
+        PERF_ITERATION=30
+        APRILTAG_GRADIENT_CLUSTERS=TRUE)
 
 endif()
 

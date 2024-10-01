@@ -4,11 +4,13 @@
 
 #include <fmt/format.h>
 
+#include <array>
 #include <new>
 #include <opencv2/core.hpp>
 #include <vector>
 
 #include "HalideBuffer.h"
+#include "ccl/bmrs.h"
 #include "halide_gradient_clusters.h"
 #include "third_party/emhash/hash_table7.hpp"
 
@@ -49,6 +51,90 @@ namespace simdtag {
 HWY_BEFORE_NAMESPACE();
 namespace HWY_NAMESPACE {
 
+using V32 = hw::VFromD<hw::ScalableTag<uint32_t>>;
+using V64 = hw::VFromD<hw::ScalableTag<uint64_t>>;
+
+// Same hash used by apriltag
+inline V64 __SimpleHash(const V64& v64) {
+    const hw::DFromV<V64> d;
+    const auto vscale = hw::Set(d, 2654435761ull);
+    return hw::ShiftRight<32>(v64 * vscale);
+}
+
+// labels_A must be aligned, labels_B does not
+inline V32 __CalculateHashes(const uint32_t* labels_A, const uint32_t* labels_B) {
+    constexpr hw::ScalableTag<uint32_t> d32;
+    constexpr hw::ScalableTag<uint64_t> d64;
+
+    // Do initial calculation as 32-bit
+    const auto vrep0 = hw::Load(d32, labels_A);
+    const auto vrep1 = hw::LoadU(d32, labels_B);
+
+    const auto vrepmin = hw::Min(vrep0, vrep1);
+    const auto vrepmax = hw::Max(vrep0, vrep1);
+
+    // Convert to 64-bit, hash, then back to 32-bit
+    const auto vrepmin_64_u = hw::PromoteUpperTo(d64, vrepmin);
+    const auto vrepmin_64_l = hw::PromoteLowerTo(d64, vrepmin);
+    const auto vrepmax_64_u = hw::PromoteUpperTo(d64, vrepmax);
+    const auto vrepmax_64_l = hw::PromoteLowerTo(d64, vrepmax);
+    const auto vrep_u = __SimpleHash(hw::ShiftLeft<32>(vrepmin_64_u) | vrepmax_64_u);
+    const auto vrep_l = __SimpleHash(hw::ShiftLeft<32>(vrepmin_64_l) | vrepmax_64_l);
+
+    return hw::OrderedTruncate2To(d32, vrep_l, vrep_u);
+}
+
+template <int START = 0, class D>
+constexpr auto GenerateSequence(D d) {
+    constexpr int N = hw::Lanes(d);
+    std::array<hw::TFromD<D>, N> result;
+    for (int i = 0; i < N; i++) result[i] = i + START;
+    return result;
+}
+
+// Restricted to 32bit lane size output
+template <int DX, int DY>
+    requires(DX >= -1 && DX <= 1) && (DY == 0 || DY == 1)
+inline V32 __CalculateValue(const uint8_t* img_A, const uint8_t* img_B, int x, int y) {
+    constexpr hw::ScalableTag<uint32_t> d;
+    constexpr int N = hw::Lanes(d);
+    constexpr hw::FixedTag<uint8_t, N> d8;
+
+    constexpr auto kSequenceBuffer = GenerateSequence(d);
+
+    constexpr uint32_t dxy_mask = static_cast<uint32_t>(-(DX - 1) + DY) << 1;
+
+    const auto vSequenceX = [&]() constexpr {
+        if constexpr (DX == 0) {
+            return hw::Zero(d);
+        } else {
+            return hw::Load(d, kSequenceBuffer.data());
+        }
+    }();
+
+    const auto vSequenceY = [&]() constexpr {
+        if constexpr (DY == 1) {
+            return hw::Load(d, kSequenceBuffer.data());
+        } else {
+            return hw::Zero(d);
+        }
+    }();
+
+    // 2 * x + dx & 0x0FFF
+    // 12 bits total, 2x that, so largert image is 2047 x 2047
+    const auto vpx = (hw::ShiftLeft<1>(Set(d, x) + vSequenceX) + Set(d, DX)) & Set(d, 0x0FFF);
+    const auto vpy = (hw::ShiftLeft<1>(Set(d, y) + vSequenceY) + Set(d, DY)) & Set(d, 0x0FFF);
+
+    const auto v0 = hw::PromoteTo(d, Load(d8, img_A));
+    const auto v1 = hw::PromoteTo(d, LoadU(d8, img_B));
+
+    const auto vblack_to_white = hw::IfThenElseZero(v1 > v0, hw::Set(d, 1));
+    const auto vpx_mask = hw::ShiftLeft<20>(vpx);
+    const auto vpy_mask = hw::ShiftLeft<8>(vpy);
+
+    return vpx_mask | vpy_mask | hw::Set(d, dxy_mask) | vblack_to_white;
+}
+
 inline int __CopyIf(uint64_t* __restrict dst, const uint64_t* __restrict src, size_t count) {
     constexpr hw::ScalableTag<uint64_t> d;
     constexpr int N = hw::Lanes(d);
@@ -85,8 +171,13 @@ class GradientClusters {
                 new (std::align_val_t(64)) uint64_t[size.width * size.height * 4];
     }
 
-    void Perform(cv::Mat1b const& input, cv::Mat1i const& labels,
-                 BMRS const& connected_components) {
+    void Perform(cv::Mat1b const& input, cv::Mat1i& labels, BMRS const& connected_components) {
+        for (int i = 0; i < input.rows; i++) {
+        }
+    }
+
+    void PerformHalide(cv::Mat1b const& input, cv::Mat1i& labels,
+                       BMRS const& connected_components) {
         Halide::Runtime::Buffer<uint8_t> halide_threshold =
                 Halide::Runtime::Buffer<uint8_t>::make_interleaved(input.data, input.cols,
                                                                    input.rows, input.channels());

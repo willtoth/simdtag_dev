@@ -93,6 +93,49 @@ void ArrayToBinary(uint64_t* __restrict dst, const uint8_t* __restrict src) {
     }
 }
 
+void TestSlide1Down() {
+    constexpr hw::ScalableTag<uint64_t> d;
+    constexpr int N = hw::Lanes(d);
+    uint64_t values[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+    const auto va = hw::Load(d, values);
+    hw::Print(d, "Before: ", va);
+    hw::Print(d, "After: ", hw::Slide1Down(d, va));
+}
+
+void TestUpperLower() {
+    constexpr hw::ScalableTag<uint32_t> d;
+    constexpr int N = hw::Lanes(d);
+    constexpr hw::FixedTag<uint32_t, N / 2> d_half;
+    constexpr hw::ScalableTag<uint64_t> d_64;
+    constexpr int N_64 = hw::Lanes(d_64);
+
+    uint32_t values[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+    const auto va = hw::Load(d, values);
+    const auto vresize = hw::PromoteLowerTo(d_64, va);
+    const auto vuresize = hw::PromoteUpperTo(d_64, va);
+    hw::Print(d, "Before: ", va, 0, N);
+    hw::Print(d_64, "After (Resize Lower): ", vresize, 0, N_64);
+    hw::Print(d_64, "After (Resize Upper): ", vuresize, 0, N_64);
+    //  hw::Print(d, "After (Upper 32): ", hw::UpperHalf(d, va));
+    //  hw::Print(d_64, "After (Upper 64): ", va2);
+
+    const auto cast = hw::OrderedTruncate2To(d, vresize, vuresize);
+    hw::Print(d, "OrderedTruncate2To: ", cast, 0, N);
+}
+
+void TestU8ToU32() {
+    constexpr hw::ScalableTag<uint32_t> d;
+    constexpr int N = hw::Lanes(d);
+    constexpr hw::FixedTag<uint8_t, N> d8;
+
+    uint8_t values[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20};
+    const auto va = hw::Load(d8, values);
+
+    hw::Print(d8, "Before: ", va, 0, N);
+
+    const auto cast = hw::PromoteTo(d, va);
+    hw::Print(d, "Promoted: ", cast, 0, N);
+}
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace project
@@ -100,6 +143,10 @@ HWY_AFTER_NAMESPACE();
 
 int main() {
     fmt::println("Hello");
+
+    project::HWY_NAMESPACE::TestU8ToU32();
+
+    return 0;
 
     ImgInit();
 
