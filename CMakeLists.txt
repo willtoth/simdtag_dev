@@ -193,6 +193,16 @@ if(WITH_BENCHMARKS)
     target_include_directories(gradient_clusters_bench PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
     target_link_libraries(gradient_clusters_bench benchmark::benchmark ${COMMON_LINK_TARGETS} simdtag apriltag adaptive_threshold halide_gradient_clusters)
 
+    # All
+    add_executable(
+        apriltag_bench
+        benchmark/apriltag_bench.cpp
+        ${TRACY_SOURCE}
+    )
+    target_compile_options(apriltag_bench PUBLIC -save-temps ${COMMON_COMPILE_OPTIONS})
+    target_include_directories(apriltag_bench PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
+    target_link_libraries(apriltag_bench benchmark::benchmark ${COMMON_LINK_TARGETS} simdtag apriltag adaptive_threshold halide_gradient_clusters)
+
 endif()
 
 
