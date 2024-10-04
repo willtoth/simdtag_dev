@@ -64,6 +64,21 @@ static void BM_GenerateTestData() {  //(benchmark::State& state) {
     // }
 }
 
+static void BM_GradientClusters(benchmark::State& state) {
+    cv::Mat1b input = cv::imread(IMAGE_PATH, cv::IMREAD_GRAYSCALE);
+    cv::Mat1b threshold = cv::Mat1b{input.size(), 0};
+    cv::Mat1i labels = cv::Mat1i{input.size(), 0};
+    simdtag::BMRS ccl{input.size()};
+    simdtag::GradientClusters gc{input.size()};
+
+    simdtag::AdaptiveThreshold(input, threshold);
+    ccl.PerformLabelingDual(threshold, labels);
+
+    for (auto _ : state) {
+        gc.Perform(threshold, labels, ccl);
+    }
+}
+
 static void BM_HalideGradientClusters(benchmark::State& state) {
     cv::Mat1b input = cv::imread(IMAGE_PATH, cv::IMREAD_GRAYSCALE);
     cv::Mat1b threshold = cv::Mat1b{input.size(), 0};
@@ -111,6 +126,7 @@ static void BM_AprilTagGradientClusters(benchmark::State& state) {
 }
 
 #if 1
+BENCHMARK(BM_GradientClusters);
 BENCHMARK(BM_HalideGradientClusters);
 BENCHMARK(BM_AprilTagGradientClusters);
 

@@ -46,6 +46,29 @@ class GradientPoint {
     GradientPoint(uint32_t value) : value_(value) {
     }
 
+    GradientPoint() : value_(0) {
+    }
+
+    void SetX(int x) {
+        value_ = (value_ & 0x000FFFFFu) | ((x * 2) << 20);
+    }
+
+    void SetY(int y) {
+        value_ = (value_ & 0xFFF000FFu) | ((y * 2) << 8);
+    }
+
+    void SetDxDy(int dx, int dy) {
+        value_ &= ~0x6;
+        uint32_t tmp = 0;
+
+        value_ |= tmp << 1;
+    }
+
+    void SetBlackToWhite(int v0, int v1) {
+        value_ &= ~1;
+        value_ |= (v0 < v1);
+    }
+
     float GetX() {
         return static_cast<float>(value_ >> 20) / 2.0f;
     }
@@ -97,6 +120,34 @@ int GetGradientValue(int DX, int DY) {
     }
 }
 
+// Generate a single row of pixels with simd 8x64
+// Values are 45% 0xFF 45% 0x00, 10% 127
+void GenerateThresholdImage8x64(uint8_t image[64], int seed = 0) {
+    std::srand(seed);
+    for (int i = 0; i < 64; i++) {
+        image[i] = std::rand() % 100;
+
+        if (image[i] < 45) {
+            image[i] = 0xFF;
+        } else if (image[i] < 90) {
+            image[i] = 0;
+        } else {
+            image[i] = 127;
+        }
+    }
+}
+
+int GenerateLabelsFromThreshold(uint8_t image[64], uint32_t labels[64], int start_label) {
+    for (int i = 0; i < 64; i++) {
+        if (image[i] == 127) {
+            labels[i] = 0;
+        } else {
+            labels[i] = start_label++;
+        }
+    }
+    return start_label;
+}
+
 template <int DX, int DY>
 void RunSimdValueCalculations() {
     // Test by 32bit
@@ -104,11 +155,7 @@ void RunSimdValueCalculations() {
     constexpr int N = hw::Lanes(d);
 
     alignas(64) uint8_t image[64];
-
-    std::srand(0);
-    for (int i = 0; i < 64; i++) {
-        image[i] = (std::rand() % 10) > 7 ? 0xFF : 0x00;
-    }
+    GenerateThresholdImage8x64(image);
 
     alignas(64) uint32_t result[sizeof(image)];
 
@@ -143,4 +190,69 @@ TEST(GradientClusters, SimdValueCalculations) {
     RunSimdValueCalculations<0, 1>();
     RunSimdValueCalculations<1, 1>();
     RunSimdValueCalculations<1, 0>();
+}
+
+TEST(GradientClusters, SimdMaskCalculation) {
+    // Test by 32bit
+    constexpr hw::ScalableTag<uint32_t> d;
+    constexpr int N = hw::Lanes(d);
+
+    alignas(64) uint8_t image_A[64], image_B[64];
+    GenerateThresholdImage8x64(image_A);
+    GenerateThresholdImage8x64(image_B, 123);
+
+    alignas(64) uint64_t result;
+    const auto mask = HWY_NAMESPACE::__CalculateMask(image_A, image_B, nullptr, nullptr);
+    hw::StoreMaskBits(d, mask, (uint8_t*)&result);
+
+    // Make sure each case is _actually_ hit in the test data...
+    int cnt_127 = 0, cnt_255 = 0;
+    for (int i = 0; i < N; i++) {
+        cnt_127 += (image_A[i] != 127);
+        cnt_255 += (image_A[i] + image_B[i]) == 255;
+        bool expected = (image_A[i] != 127) && (image_A[i] + image_B[i]) == 255;
+        bool actual = result & (0x1 << i);
+        // fmt::println("{}, {} --> expected: {}, Actual: {}", image_A[i], image_B[i], expected,
+        //              actual);
+        EXPECT_EQ(expected, actual);
+    }
+
+    EXPECT_TRUE(cnt_127 > 0);
+    EXPECT_TRUE(cnt_255 > 0);
+
+    // For now this is only
+    // v0 != 127
+    // v0 + v1 == 255
+}
+
+TEST(GradientClusters, SimdGradientClustersCalculations) {
+    // Test by 32bit
+    constexpr hw::ScalableTag<uint32_t> d;
+    constexpr int N = hw::Lanes(d);
+
+    uint8_t image_A[64], image_B[64];
+    uint32_t labels_A[64], labels_B[64];
+    GenerateThresholdImage8x64(image_A);
+    GenerateThresholdImage8x64(image_B, 123);
+    GenerateLabelsFromThreshold(image_A, labels_A, 100);
+    GenerateLabelsFromThreshold(image_B, labels_B, 500);
+
+    uint64_t result[sizeof(image_A) * 2];
+
+    int written = HWY_NAMESPACE::__CalculateAndStoreGradientVector<0, 1>(image_A, image_B, labels_A,
+                                                                         labels_B, 0, 0, result);
+
+    int idx = 0;
+    for (int i = 0; i < N; i++) {
+        if ((image_A[i] != 127) && (image_A[i] + image_B[i]) == 255) {
+            uint64_t value = result[idx];
+            uint64_t repl = std::max(labels_B[i], labels_A[i]);
+            uint64_t reph = std::min(labels_B[i], labels_A[i]);
+            uint32_t rep = (((repl | reph << 32) * 2654435761ull) >> 32);
+            EXPECT_EQ(rep, value >> 32);
+            idx++;
+        }
+    }
+
+    EXPECT_EQ(written, idx);
 }

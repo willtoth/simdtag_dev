@@ -1,4 +1,5 @@
 #include <fmt/format.h>
+#include <hwy/cache_control.h>
 #include <hwy/highway.h>
 #include <hwy/print-inl.h>
 
@@ -136,6 +137,31 @@ void TestU8ToU32() {
     const auto cast = hw::PromoteTo(d, va);
     hw::Print(d, "Promoted: ", cast, 0, N);
 }
+
+void CompressStore() {
+    constexpr hw::ScalableTag<uint64_t> d;
+    constexpr int N = hw::Lanes(d);
+    alignas(64) uint64_t maskbuffer[N] = {255, 255, 0, 255, 0, 0, 0, 255};
+    alignas(64) uint64_t inbuffer[N] = {21, 22, 23, 24, 25, 26, 27, 28};
+    alignas(64) uint64_t outbuffer[N + 1];
+    for (int i = 0; i < N + 1; i++) {
+        outbuffer[i] = 1;
+    }
+
+    const auto va = hw::LoadU(d, inbuffer);
+    const auto mask = hw::LoadU(d, maskbuffer) > hw::Zero(d);
+    const auto vcompress = hw::Compress(va, mask);
+    hw::Stream(vcompress, d, outbuffer);
+    // hwy::FlushStream();
+
+    hw::Print(d, "va: ", va, 0, N);
+    hw::Print(d, "vcompress: ", vcompress, 0, N);
+
+    for (int i = 0; i < N + 1; i++) {
+        fmt::println("{}", outbuffer[i]);
+    }
+}
+
 // NOLINTNEXTLINE(google-readability-namespace-comments)
 }  // namespace HWY_NAMESPACE
 }  // namespace project
@@ -144,7 +170,7 @@ HWY_AFTER_NAMESPACE();
 int main() {
     fmt::println("Hello");
 
-    project::HWY_NAMESPACE::TestU8ToU32();
+    project::HWY_NAMESPACE::CompressStore();
 
     return 0;
 

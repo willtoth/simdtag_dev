@@ -12,6 +12,7 @@
 #include "HalideBuffer.h"
 #include "ccl/bmrs.h"
 #include "halide_gradient_clusters.h"
+#include "simdtag/highway_utils.h"
 #include "third_party/emhash/hash_table7.hpp"
 
 // clang-format off
@@ -54,20 +55,21 @@ namespace HWY_NAMESPACE {
 using V32 = hw::VFromD<hw::ScalableTag<uint32_t>>;
 using V64 = hw::VFromD<hw::ScalableTag<uint64_t>>;
 
-// Same hash used by apriltag
+// "Knuth's Multiplicative Hash" same as used by apriltag
 inline V64 __SimpleHash(const V64& v64) {
     const hw::DFromV<V64> d;
     const auto vscale = hw::Set(d, 2654435761ull);
     return hw::ShiftRight<32>(v64 * vscale);
 }
 
-// labels_A must be aligned, labels_B does not
+// Calculate hash for 32-bit label neighbors, reads N labels from each buffer where N
+// is the number of SIMD lanes. Returns a vector with the hashes.
 inline V32 __CalculateHashes(const uint32_t* labels_A, const uint32_t* labels_B) {
     constexpr hw::ScalableTag<uint32_t> d32;
     constexpr hw::ScalableTag<uint64_t> d64;
 
     // Do initial calculation as 32-bit
-    const auto vrep0 = hw::Load(d32, labels_A);
+    const auto vrep0 = hw::LoadU(d32, labels_A);
     const auto vrep1 = hw::LoadU(d32, labels_B);
 
     const auto vrepmin = hw::Min(vrep0, vrep1);
@@ -84,6 +86,8 @@ inline V32 __CalculateHashes(const uint32_t* labels_A, const uint32_t* labels_B)
     return hw::OrderedTruncate2To(d32, vrep_l, vrep_u);
 }
 
+// Generate a sequence from START to START + #Lanes
+// Type is derived from the D typed passed in
 template <int START = 0, class D>
 constexpr auto GenerateSequence(D d) {
     constexpr int N = hw::Lanes(d);
@@ -94,7 +98,7 @@ constexpr auto GenerateSequence(D d) {
 
 // Restricted to 32bit lane size output
 template <int DX, int DY>
-    requires(DX >= -1 && DX <= 1) && (DY == 0 || DY == 1)
+    requires(DX == 1 && DY == 0) || (DY == 1 && (DX >= -1 || DX <= 1))
 inline V32 __CalculateValue(const uint8_t* img_A, const uint8_t* img_B, int x, int y) {
     constexpr hw::ScalableTag<uint32_t> d;
     constexpr int N = hw::Lanes(d);
@@ -125,7 +129,7 @@ inline V32 __CalculateValue(const uint8_t* img_A, const uint8_t* img_B, int x, i
     const auto vpx = (hw::ShiftLeft<1>(Set(d, x) + vSequenceX) + Set(d, DX)) & Set(d, 0x0FFF);
     const auto vpy = (hw::ShiftLeft<1>(Set(d, y) + vSequenceY) + Set(d, DY)) & Set(d, 0x0FFF);
 
-    const auto v0 = hw::PromoteTo(d, Load(d8, img_A));
+    const auto v0 = hw::PromoteTo(d, LoadU(d8, img_A));
     const auto v1 = hw::PromoteTo(d, LoadU(d8, img_B));
 
     const auto vblack_to_white = hw::IfThenElseZero(v1 > v0, hw::Set(d, 1));
@@ -133,6 +137,103 @@ inline V32 __CalculateValue(const uint8_t* img_A, const uint8_t* img_B, int x, i
     const auto vpy_mask = hw::ShiftLeft<8>(vpy);
 
     return vpx_mask | vpy_mask | hw::Set(d, dxy_mask) | vblack_to_white;
+}
+
+// Create a bitwise mask for lanes which are valid
+inline auto __CalculateMask(const uint8_t* img_A, const uint8_t* img_B, const uint32_t* labels_A,
+                            const uint32_t* labels_B) {
+    // Result is an "and" of the below conditions
+    // v0 != 127
+    // v0 + v1 == 255
+    // rep0.size > 24
+    // rep1.size > 24
+    // connected_last
+
+    constexpr hw::ScalableTag<uint32_t> d;
+    constexpr int N = hw::Lanes(d);
+    constexpr hw::FixedTag<uint8_t, N> d8;
+
+    // Small buffer for intermediate calculations
+    alignas(64) static uint32_t rep_buffer[N];
+
+    // Load image into 32bit lanes
+    const auto v0 = hw::PromoteTo(d, LoadU(d8, img_A));
+    const auto v1 = hw::PromoteTo(d, LoadU(d8, img_B));
+
+    auto mres = v0 != hw::Set(d, 127);
+    mres = hw::And(mres, ((v0 + v1) == hw::Set(d, 255)));
+
+    // Compiler should unroll automatically
+    // TODO: Is endieness backwards here?
+    // TODO: This is SLOW here, likely due to cache hit from below lookup
+    // TODO: It may end up faster to just eat the cost of not calculating CCL label counts at all,
+    // remove it from the CCL algo as well, then filter these out based on bucket size after
+    // gradient clusters.
+    // for (int i = 0; i < N; i++) {
+    //     rep_buffer[i] =
+    //             (ccl.GetLabelCount(labels_A[i]) > 24) && (ccl.GetLabelCount(labels_B[i]) > 24) ?
+    //             255
+    //                                                                                            :
+    //                                                                                            0;
+    // }
+    // mres = hw::And(mres, MaskFromVec(Load(d, rep_buffer)));
+
+    return mres;
+}
+
+// Return number of uint64_t written to output
+template <int DX, int DY>
+    requires(DX == 1 && DY == 0) || (DY == 1 && (DX >= -1 || DX <= 1))
+inline auto __CalculateAndStoreGradientVector(const uint8_t* img, const uint8_t* img_row2,
+                                              const uint32_t* labels, const uint32_t* labels_row2,
+                                              int row, int col, uint64_t* output) {
+    constexpr hw::ScalableTag<uint32_t> d;
+    constexpr hw::ScalableTag<uint64_t> d64;
+    constexpr int N = hw::Lanes(d);
+    constexpr int N64 = hw::Lanes(d64);
+    constexpr hw::FixedTag<uint32_t, N / 2> dHalf;
+
+    // First pointer is always img or labels, but second pointer depends on DX and DY
+    // DY selects between row1 and row2. DX can simply be added to that
+    const uint8_t* image_B;
+    const uint32_t* labels_B;
+    if constexpr (DY == 0) {
+        image_B = img;
+        labels_B = labels;
+    } else {
+        image_B = img_row2;
+        labels_B = labels_row2;
+    }
+
+    // Actual calculations
+    const auto vvalues = HWY_NAMESPACE::__CalculateValue<DX, DY>(img, image_B + DX, col, row);
+    const auto vhash = HWY_NAMESPACE::__CalculateHashes(labels, labels_B + DX);
+    const auto mask = HWY_NAMESPACE::__CalculateMask(img, image_B + DX, labels, labels_B + DX);
+
+    // Convert 4 32bit into two 64 bit (hash << 32 | value)
+    const auto vhash64_u = hw::PromoteUpperTo(d64, vhash);
+    const auto vhash64_l = hw::PromoteLowerTo(d64, vhash);
+    const auto vvalues_u = hw::PromoteUpperTo(d64, vvalues);
+    const auto vvalues_l = hw::PromoteLowerTo(d64, vvalues);
+    const auto out_u = hw::ShiftLeft<32>(vhash64_u) | vvalues_u;
+    const auto out_l = hw::ShiftLeft<32>(vhash64_l) | vvalues_l;
+
+    // The storage locality costs far outweight the cost of computation for this problem
+    // so speed up will all come down to memory speed.
+    const auto mask_u = hw::PromoteMaskTo(d64, dHalf, UpperHalfOfMask(dHalf, mask));
+    const auto mask_l = hw::PromoteMaskTo(d64, dHalf, LowerHalfOfMask(dHalf, mask));
+
+    // if (hw::CountTrue(d, mask)) {
+    //     HWY_NAMESPACE::PrintMask(d, "mask>", mask);
+    //     HWY_NAMESPACE::PrintMask(d64, "mask_u>", mask_u);
+    //     HWY_NAMESPACE::PrintMask(d64, "mask_l>", mask_l);
+    // }
+
+    int mask_l_size = hw::CountTrue(d64, mask_l);
+    hw::CompressBlendedStore(out_l, mask_l, d64, output);
+    hw::CompressBlendedStore(out_u, mask_u, d64, output + mask_l_size);
+
+    return mask_l_size + hw::CountTrue(d64, mask_u);
 }
 
 inline int __CopyIf(uint64_t* __restrict dst, const uint64_t* __restrict src, size_t count) {
@@ -164,16 +265,46 @@ class GradientClusters {
     Halide::Runtime::Buffer<uint64_t> sparse_gradient_points_;
     uint64_t* compressed_gradient_points_;
     HashMapType hash_map_{1000000};
+    std::vector<uint64_t> output_;
 
    public:
     GradientClusters(cv::Size size) : sparse_gradient_points_{size.width, size.height, 4} {
         compressed_gradient_points_ =
                 new (std::align_val_t(64)) uint64_t[size.width * size.height * 4];
+        output_.reserve(size.width * size.height * 4);
     }
 
-    void Perform(cv::Mat1b const& input, cv::Mat1i& labels, BMRS const& connected_components) {
-        for (int i = 0; i < input.rows; i++) {
+    void Perform(cv::Mat1b& input, cv::Mat1i& labels, BMRS const& connected_components) {
+        // TODO: Note this whole function should move into HWY_NAMESPACE above to get lane counts
+        constexpr hw::ScalableTag<uint32_t> d;
+        constexpr int N = hw::Lanes(d);
+        int top = 0;
+        for (int r = 0; r < input.rows - 1; r++) {
+            uint32_t* pLabels_start = labels.ptr<uint32_t>(r);
+            uint32_t* pLabels_next_start = labels.ptr<uint32_t>(r + 1);
+            uint8_t* pimg_start = input.ptr<uint8_t>(r);
+            uint8_t* pimg_next_start = input.ptr<uint8_t>(r + 1);
+
+            for (int c = 1; c < input.cols - 1; c += N) {
+                uint32_t* pLabels = pLabels_start + c;
+                uint32_t* pLabels_next = pLabels_next_start + c;
+                uint8_t* pimg = pimg_start + c;
+                uint8_t* pimg_next = pimg_next_start + c;
+                top += HWY_NAMESPACE::__CalculateAndStoreGradientVector<1, 0>(
+                        pimg, pimg_next, pLabels, pLabels_next, r, c,
+                        compressed_gradient_points_ + top);
+                top += HWY_NAMESPACE::__CalculateAndStoreGradientVector<1, 1>(
+                        pimg, pimg_next, pLabels, pLabels_next, r, c,
+                        compressed_gradient_points_ + top);
+                top += HWY_NAMESPACE::__CalculateAndStoreGradientVector<-1, 1>(
+                        pimg, pimg_next, pLabels, pLabels_next, r, c,
+                        compressed_gradient_points_ + top);
+                top += HWY_NAMESPACE::__CalculateAndStoreGradientVector<0, 1>(
+                        pimg, pimg_next, pLabels, pLabels_next, r, c,
+                        compressed_gradient_points_ + top);
+            }
         }
+        hw::VQSortStatic(compressed_gradient_points_, top, hwy::SortDescending{});
     }
 
     void PerformHalide(cv::Mat1b const& input, cv::Mat1i& labels,

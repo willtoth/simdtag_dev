@@ -7,6 +7,7 @@
 #include "common/pjpeg.h"
 #include "common/unionfind.h"
 #include "common/workerpool.h"
+#include "fmt/format.h"
 #include "gradient_clusters.h"
 #include "simdtag/vision_utils.h"
 #include "threshold.h"
@@ -21,7 +22,7 @@ extern zarray_t* gradient_clusters(apriltag_detector_t* td, image_u8_t* threshim
                                    int ts, unionfind_t* uf);
 }
 
-static void Perf_HalideGradientClusters() {
+static void Perf_GradientClusters() {
     cv::Mat1b input = cv::imread(IMAGE_PATH, cv::IMREAD_GRAYSCALE);
     cv::Mat1b threshold = cv::Mat1b{input.size(), 0};
     cv::Mat1i labels = cv::Mat1i{input.size(), 0};
@@ -59,11 +60,21 @@ static void Perf_AprilTagGradientClusters() {
     for (int i = 0; i < PERF_ITERATION; i++) {
         zarray_t* out = gradient_clusters(td, threshim, w, h, ts, uf);
     }
+
+    zarray_t* clusters = gradient_clusters(td, threshim, w, h, ts, uf);
+    int sz = zarray_size(clusters);
+    int total = 0;
+    for (int i = 0; i < sz; i++) {
+        zarray_t** cluster;
+        zarray_get_volatile(clusters, i, &cluster);
+        total += zarray_size(*cluster);
+    }
+    fmt::println("Total cluster points (after filtering): {}", total);
 }
 
 int main() {
 #if defined(HALIDE_GRADIENT_CLUSTERS)
-    Perf_HalideGradientClusters();
+    Perf_GradientClusters();
 #elif defined(APRILTAG_GRADIENT_CLUSTERS)
     Perf_AprilTagGradientClusters();
 #else
