@@ -49,6 +49,71 @@ namespace hw = hwy::HWY_NAMESPACE;
 
 namespace simdtag {
 
+// TODO: Make a nicer class for this in the library
+class GradientPoint {
+   public:
+    GradientPoint(uint32_t value) : value_(value) {
+    }
+
+    GradientPoint() : value_(0) {
+    }
+
+    void SetX(int x) {
+        value_ = (value_ & 0x000FFFFFu) | ((x * 2) << 20);
+    }
+
+    void SetY(int y) {
+        value_ = (value_ & 0xFFF000FFu) | ((y * 2) << 8);
+    }
+
+    void SetDxDy(int dx, int dy) {
+        value_ &= ~0x6;
+        uint32_t tmp = 0;
+
+        value_ |= tmp << 1;
+    }
+
+    void SetBlackToWhite(int v0, int v1) {
+        value_ &= ~1;
+        value_ |= (v0 < v1);
+    }
+
+    float GetX() {
+        return static_cast<float>(value_ >> 20) / 2.0f;
+    }
+
+    float GetY() {
+        return static_cast<float>((value_ & 0x000FFF00u) >> 8) / 2.0f;
+    }
+
+    int GetDx() {
+        switch (GradientValue()) {
+            case 0:
+            case 1:
+                return 1;
+            case 3:
+                return -1;
+            default:
+                return 0;
+        }
+    }
+
+    int GetDy() {
+        return GradientValue() != 0;
+    }
+
+    bool GetBlackToWhite() {
+        return value_ & 1;
+    }
+
+    int GradientValue() {
+        return static_cast<int>((value_ & 0x6u) >> 1);
+    }
+
+   private:
+    uint32_t value_;
+};
+
 HWY_BEFORE_NAMESPACE();
 namespace HWY_NAMESPACE {
 
@@ -108,26 +173,14 @@ inline V32 __CalculateValue(const uint8_t* img_A, const uint8_t* img_B, int x, i
 
     constexpr uint32_t dxy_mask = static_cast<uint32_t>(-(DX - 1) + DY) << 1;
 
-    const auto vSequenceX = [&]() constexpr {
-        if constexpr (DX == 0) {
-            return hw::Zero(d);
-        } else {
-            return hw::Load(d, kSequenceBuffer.data());
-        }
-    }();
+    const auto vSequenceX = hw::Load(d, kSequenceBuffer.data());
 
-    const auto vSequenceY = [&]() constexpr {
-        if constexpr (DY == 1) {
-            return hw::Load(d, kSequenceBuffer.data());
-        } else {
-            return hw::Zero(d);
-        }
-    }();
-
-    // 2 * x + dx & 0x0FFF
+    // 2 * x + dx & 0x0FFF x is x + (i) for simd width
     // 12 bits total, 2x that, so largert image is 2047 x 2047
     const auto vpx = (hw::ShiftLeft<1>(Set(d, x) + vSequenceX) + Set(d, DX)) & Set(d, 0x0FFF);
-    const auto vpy = (hw::ShiftLeft<1>(Set(d, y) + vSequenceY) + Set(d, DY)) & Set(d, 0x0FFF);
+
+    // 2 * y + dy & 0x0FFF y is y + 0 or 1
+    const auto vpy = (hw::ShiftLeft<1>(Set(d, y)) + Set(d, DY)) & Set(d, 0x0FFF);
 
     const auto v0 = hw::PromoteTo(d, LoadU(d8, img_A));
     const auto v1 = hw::PromoteTo(d, LoadU(d8, img_B));
@@ -264,14 +317,14 @@ class GradientClusters {
     // TODO: This will be a planar layout, experiment with interleaved and linear
     Halide::Runtime::Buffer<uint64_t> sparse_gradient_points_;
     uint64_t* compressed_gradient_points_;
-    HashMapType hash_map_{1000000};
-    std::vector<uint64_t> output_;
+    int points_;
+    cv::Size size_;
 
    public:
-    GradientClusters(cv::Size size) : sparse_gradient_points_{size.width, size.height, 4} {
+    GradientClusters(cv::Size size)
+        : sparse_gradient_points_{size.width, size.height, 4}, size_(size) {
         compressed_gradient_points_ =
                 new (std::align_val_t(64)) uint64_t[size.width * size.height * 4];
-        output_.reserve(size.width * size.height * 4);
     }
 
     void Perform(cv::Mat1b& input, cv::Mat1i& labels, BMRS const& connected_components) {
@@ -304,7 +357,41 @@ class GradientClusters {
                         compressed_gradient_points_ + top);
             }
         }
+        points_ = top;
         hw::VQSortStatic(compressed_gradient_points_, top, hwy::SortDescending{});
+    }
+
+    void Print(int cols = 4) {
+        for (int i = 0; i < points_; i++) {
+            uint64_t val = compressed_gradient_points_[i];
+            uint32_t hash = val >> 32;
+            GradientPoint p{static_cast<uint32_t>(val)};
+            fmt::print("{} - x:{} y:{} ", hash, p.GetX(), p.GetY());
+
+            if (i % cols == (cols - 1)) {
+                fmt::println("");
+            }
+        }
+    }
+
+    cv::Mat1b Draw() {
+        cv::Mat1b result = cv::Mat::zeros(size_, CV_8UC1);
+
+        for (int i = 0; i < points_; i++) {
+            GradientPoint p{static_cast<uint32_t>(compressed_gradient_points_[i])};
+            int y = (int)p.GetY();
+            int x = (int)p.GetX();
+            if (y < 0 || y >= size_.height || x < 0 || x >= size_.width) {
+                fmt::println("Out-of-bounds access: (y, x) = ({},{}", y, x);
+                continue;  // Skip this point to avoid crashing
+            }
+
+            assert((int)p.GetY() < size_.height);
+            assert((int)p.GetX() < size_.width);
+            result.at<uint8_t>((int)p.GetY(), (int)p.GetX()) += 255 >> 2;
+        }
+
+        return result;
     }
 
     void PerformHalide(cv::Mat1b const& input, cv::Mat1i& labels,
@@ -316,8 +403,8 @@ class GradientClusters {
         Halide::Runtime::Buffer<int> halide_labels = Halide::Runtime::Buffer<int>::make_interleaved(
                 (int*)labels.data, labels.cols, labels.rows, labels.channels());
 
-        int error = halide_gradient_clusters(halide_threshold, halide_labels, &hash_map_,
-                                             sparse_gradient_points_);
+        int error =
+                halide_gradient_clusters(halide_threshold, halide_labels, sparse_gradient_points_);
 
         size_t double_words = sparse_gradient_points_.size_in_bytes() / 8;
 

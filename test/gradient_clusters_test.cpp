@@ -40,71 +40,6 @@ TEST(GradientClusters, SimdHash) {
     }
 }
 
-// TODO: Make a nicer class for this in the library
-class GradientPoint {
-   public:
-    GradientPoint(uint32_t value) : value_(value) {
-    }
-
-    GradientPoint() : value_(0) {
-    }
-
-    void SetX(int x) {
-        value_ = (value_ & 0x000FFFFFu) | ((x * 2) << 20);
-    }
-
-    void SetY(int y) {
-        value_ = (value_ & 0xFFF000FFu) | ((y * 2) << 8);
-    }
-
-    void SetDxDy(int dx, int dy) {
-        value_ &= ~0x6;
-        uint32_t tmp = 0;
-
-        value_ |= tmp << 1;
-    }
-
-    void SetBlackToWhite(int v0, int v1) {
-        value_ &= ~1;
-        value_ |= (v0 < v1);
-    }
-
-    float GetX() {
-        return static_cast<float>(value_ >> 20) / 2.0f;
-    }
-
-    float GetY() {
-        return static_cast<float>((value_ & 0x000FFF00u) >> 8) / 2.0f;
-    }
-
-    int GetDx() {
-        switch (GradientValue()) {
-            case 0:
-            case 1:
-                return 1;
-            case 3:
-                return -1;
-            default:
-                return 0;
-        }
-    }
-
-    int GetDy() {
-        return GradientValue() != 0;
-    }
-
-    bool GetBlackToWhite() {
-        return value_ & 1;
-    }
-
-    int GradientValue() {
-        return static_cast<int>((value_ & 0x6u) >> 1);
-    }
-
-   private:
-    uint32_t value_;
-};
-
 int GetGradientValue(int DX, int DY) {
     if (DY == 1) {
         switch (DX) {
@@ -162,27 +97,25 @@ void RunSimdValueCalculations() {
     const auto vresult = HWY_NAMESPACE::__CalculateValue<DX, DY>(image, image + 1, 0, 0);
     hw::Store(vresult, d, result);
 
-    int x = 0, y = 0;
+    int x = 0;
     for (int i = 0; i < N; i++) {
         // Edge case has gibberish here!! (by design, responsibility is the caller's)
         if (DX == -1 && i == 0) {
-            x += std::abs(DX);
-            y += DY;
+            x++;
             continue;
         }
 
         GradientPoint p(result[i]);
         EXPECT_EQ(x + 0.5f * DX, p.GetX());
-        EXPECT_EQ(y + 0.5f * DY, p.GetY());
+        EXPECT_EQ(DY * 0.5, p.GetY());
         EXPECT_EQ(GetGradientValue(DX, DY), p.GradientValue());
         EXPECT_EQ(DX, p.GetDx());
         EXPECT_EQ(DY, p.GetDy());
-        x += std::abs(DX);
-        y += DY;
+        x++;
     }
 
     // Make sure the next load doesn't crash or anything (e.g. alignment)
-    const auto vresult2 = HWY_NAMESPACE::__CalculateValue<1, 0>(image + N, image + N + 1, 0, 0);
+    const auto vresult2 = HWY_NAMESPACE::__CalculateValue<DX, DY>(image + N, image + N + 1, 0, 0);
 }
 
 TEST(GradientClusters, SimdValueCalculations) {

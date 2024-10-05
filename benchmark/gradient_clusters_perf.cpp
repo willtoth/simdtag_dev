@@ -13,6 +13,7 @@
 #include "threshold.h"
 
 #define IMAGE_PATH CMAKE_PROJECT_SOURCE_DIR "/assets/apriltag/tags_3_desk.jpg"
+#define IMAGE_PATH2 CMAKE_PROJECT_SOURCE_DIR "/assets/apriltag/shapes.png"
 
 extern "C" {
 extern image_u8_t* threshold(apriltag_detector_t* td, image_u8_t* im);
@@ -23,7 +24,7 @@ extern zarray_t* gradient_clusters(apriltag_detector_t* td, image_u8_t* threshim
 }
 
 static void Perf_GradientClusters() {
-    cv::Mat1b input = cv::imread(IMAGE_PATH, cv::IMREAD_GRAYSCALE);
+    cv::Mat1b input = cv::imread(IMAGE_PATH2, cv::IMREAD_GRAYSCALE);
     cv::Mat1b threshold = cv::Mat1b{input.size(), 0};
     cv::Mat1i labels = cv::Mat1i{input.size(), 0};
     simdtag::BMRS ccl{input.size()};
@@ -35,6 +36,14 @@ static void Perf_GradientClusters() {
     for (int i = 0; i < PERF_ITERATION; i++) {
         gc.Perform(threshold, labels, ccl);
     }
+
+    // gc.Print();
+    cv::Mat1b result = gc.Draw();
+
+    std::stringstream filename;
+    filename << CMAKE_PROJECT_BUILD_DIR << "/" << "GradientClustersOutput" << ".jpg";
+
+    cv::imwrite(filename.str(), result);
 }
 
 static void Perf_AprilTagGradientClusters() {

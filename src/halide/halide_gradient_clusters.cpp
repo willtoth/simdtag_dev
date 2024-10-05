@@ -11,7 +11,6 @@ class GradientClusters : public Halide::Generator<GradientClusters> {
    public:
     Input<Buffer<uint8_t, 3>> input{"input"};
     Input<Buffer<int32_t, 3>> labels{"labels"};
-    Input<void*> hash_map{"hashmap"};
     Output<Buffer<uint64_t, 3>> gradient_clusters{"gradient_clusters"};
     Var x{"x"}, y{"y"}, c{"c"};
 
@@ -65,7 +64,6 @@ class GradientClusters : public Halide::Generator<GradientClusters> {
             input.set_estimates({{640, 1600}, {480, 1200}, {1, 1}});
             labels.set_estimates({{640, 1600}, {480, 1200}, {1, 1}});
             gradient_clusters.set_estimates({{640, 1600}, {480, 1200}, {4, 4}});
-            hash_map.set_estimate(nullptr);
             //  output.set_estimates({{640 * 480 * 4, 1200 * 1600 * 4}});
         } else {
             // auto pipeline = get_pipeline();
