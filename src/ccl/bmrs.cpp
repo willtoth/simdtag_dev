@@ -295,9 +295,25 @@ void BMRS::PerformLabelingDual(cv::Mat1b const& input, cv::Mat1i& labels) {
                 int label = label_solver_.GetLabel(runs_black->label);
 
                 for (int j = start_pos; j < end_pos; j++) {
-                    if (data_u[j >> 6] & (1ull << (j & 0x3F))) labels_u[j] = label;
-                    if (data_d[j >> 6] & (1ull << (j & 0x3F))) labels_d[j] = label;
+                    if (data_u[j >> 6] & (1ull << (j & 0x3F))) {
+                        labels_u[j] = label;
+                        label_solver_.__InternalCountLabel(label);
+                    }
+                    if (data_d[j >> 6] & (1ull << (j & 0x3F))) {
+                        labels_d[j] = label;
+                        label_solver_.__InternalCountLabel(label);
+                    }
                 }
+            }
+        }
+    }
+
+    // Filter out labels that are too small
+    for (int r = 0; r < labels.rows; r++) {
+        for (int c = 0; c < labels.cols; c++) {
+            auto& ref = labels.at<unsigned>(r, c);
+            if (label_solver_.GetLabelCount(ref) < 25) {
+                ref = 0;
             }
         }
     }

@@ -230,7 +230,7 @@ BENCHMARK(BM_YacclabBmrs);
 BENCHMARK(BM_Bmrs);
 BENCHMARK(BM_BmrsThreadSwap);
 BENCHMARK(BM_BmrsDual);
-BENCHMARK(BM_BmrsDualThreadSwap);
+// BENCHMARK(BM_BmrsDualThreadSwap);
 BENCHMARK(BM_YacclabSpaghetti);
 BENCHMARK(BM_YacclabSpaghettiDual);
 BENCHMARK(BM_AprilTagUnionFind);

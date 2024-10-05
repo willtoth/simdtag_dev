@@ -163,6 +163,11 @@ inline auto __CalculateMask(const uint8_t* img_A, const uint8_t* img_B, const ui
     auto mres = v0 != hw::Set(d, 127);
     mres = hw::And(mres, ((v0 + v1) == hw::Set(d, 255)));
 
+    const auto vlabelsA = hw::LoadU(d, labels_A);
+    const auto vlabelsB = hw::LoadU(d, labels_B);
+    auto labels_mask = hw::And(vlabelsA > hw::Zero(d), vlabelsB > hw::Zero(d));
+    mres = hw::And(mres, labels_mask);
+
     // Compiler should unroll automatically
     // TODO: Is endieness backwards here?
     // TODO: This is SLOW here, likely due to cache hit from below lookup
@@ -304,6 +309,7 @@ class GradientClusters {
                         compressed_gradient_points_ + top);
             }
         }
+        // fmt::println("{}", top);
         hw::VQSortStatic(compressed_gradient_points_, top, hwy::SortDescending{});
     }
 
