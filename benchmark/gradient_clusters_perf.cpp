@@ -24,7 +24,7 @@ extern zarray_t* gradient_clusters(apriltag_detector_t* td, image_u8_t* threshim
 }
 
 static void Perf_GradientClusters() {
-    cv::Mat1b input = cv::imread(IMAGE_PATH2, cv::IMREAD_GRAYSCALE);
+    cv::Mat1b input = cv::imread(IMAGE_PATH, cv::IMREAD_GRAYSCALE);
     cv::Mat1b threshold = cv::Mat1b{input.size(), 0};
     cv::Mat1i labels = cv::Mat1i{input.size(), 0};
     simdtag::BMRS ccl{input.size()};
@@ -71,14 +71,20 @@ static void Perf_AprilTagGradientClusters() {
     }
 
     zarray_t* clusters = gradient_clusters(td, threshim, w, h, ts, uf);
-    int sz = zarray_size(clusters);
-    int total = 0;
-    for (int i = 0; i < sz; i++) {
-        zarray_t** cluster;
-        zarray_get_volatile(clusters, i, &cluster);
-        total += zarray_size(*cluster);
-    }
-    fmt::println("Total cluster points (after filtering): {}", total);
+
+    std::stringstream filename;
+    filename << CMAKE_PROJECT_BUILD_DIR << "/" << "GradientClustersApriltagOutput" << ".jpg";
+
+    cv::imwrite(filename.str(), DrawGradientClustersBlackAndWhite(w, h, clusters));
+
+    // int sz = zarray_size(clusters);
+    // int total = 0;
+    // for (int i = 0; i < sz; i++) {
+    //     zarray_t** cluster;
+    //     zarray_get_volatile(clusters, i, &cluster);
+    //     total += zarray_size(*cluster);
+    // }
+    // fmt::println("Total cluster points (after filtering): {}", total);
 }
 
 int main() {

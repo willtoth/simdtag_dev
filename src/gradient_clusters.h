@@ -194,7 +194,7 @@ inline V32 __CalculateValue(const uint8_t* img_A, const uint8_t* img_B, int x, i
 
 // Create a bitwise mask for lanes which are valid
 inline auto __CalculateMask(const uint8_t* img_A, const uint8_t* img_B, const uint32_t* labels_A,
-                            const uint32_t* labels_B) {
+                            const uint32_t* labels_B, int remaining_pixels) {
     // Result is an "and" of the below conditions
     // v0 != 127
     // v0 + v1 == 255
@@ -215,6 +215,7 @@ inline auto __CalculateMask(const uint8_t* img_A, const uint8_t* img_B, const ui
 
     auto mres = v0 != hw::Set(d, 127);
     mres = hw::And(mres, ((v0 + v1) == hw::Set(d, 255)));
+    mres = hw::And(mres, FirstN(d, remaining_pixels));
 
     // Compiler should unroll automatically
     // TODO: Is endieness backwards here?
@@ -239,7 +240,7 @@ template <int DX, int DY>
     requires(DX == 1 && DY == 0) || (DY == 1 && (DX >= -1 || DX <= 1))
 inline auto __CalculateAndStoreGradientVector(const uint8_t* img, const uint8_t* img_row2,
                                               const uint32_t* labels, const uint32_t* labels_row2,
-                                              int row, int col, uint64_t* output) {
+                                              int row, int col, int img_width, uint64_t* output) {
     constexpr hw::ScalableTag<uint32_t> d;
     constexpr hw::ScalableTag<uint64_t> d64;
     constexpr int N = hw::Lanes(d);
@@ -261,7 +262,8 @@ inline auto __CalculateAndStoreGradientVector(const uint8_t* img, const uint8_t*
     // Actual calculations
     const auto vvalues = HWY_NAMESPACE::__CalculateValue<DX, DY>(img, image_B + DX, col, row);
     const auto vhash = HWY_NAMESPACE::__CalculateHashes(labels, labels_B + DX);
-    const auto mask = HWY_NAMESPACE::__CalculateMask(img, image_B + DX, labels, labels_B + DX);
+    const auto mask = HWY_NAMESPACE::__CalculateMask(img, image_B + DX, labels, labels_B + DX,
+                                                     img_width - col);
 
     // Convert 4 32bit into two 64 bit (hash << 32 | value)
     const auto vhash64_u = hw::PromoteUpperTo(d64, vhash);
@@ -344,16 +346,16 @@ class GradientClusters {
                 uint8_t* pimg = pimg_start + c;
                 uint8_t* pimg_next = pimg_next_start + c;
                 top += HWY_NAMESPACE::__CalculateAndStoreGradientVector<1, 0>(
-                        pimg, pimg_next, pLabels, pLabels_next, r, c,
+                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols,
                         compressed_gradient_points_ + top);
                 top += HWY_NAMESPACE::__CalculateAndStoreGradientVector<1, 1>(
-                        pimg, pimg_next, pLabels, pLabels_next, r, c,
+                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols,
                         compressed_gradient_points_ + top);
                 top += HWY_NAMESPACE::__CalculateAndStoreGradientVector<-1, 1>(
-                        pimg, pimg_next, pLabels, pLabels_next, r, c,
+                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols,
                         compressed_gradient_points_ + top);
                 top += HWY_NAMESPACE::__CalculateAndStoreGradientVector<0, 1>(
-                        pimg, pimg_next, pLabels, pLabels_next, r, c,
+                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols,
                         compressed_gradient_points_ + top);
             }
         }

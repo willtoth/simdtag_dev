@@ -135,7 +135,7 @@ TEST(GradientClusters, SimdMaskCalculation) {
     GenerateThresholdImage8x64(image_B, 123);
 
     alignas(64) uint64_t result;
-    const auto mask = HWY_NAMESPACE::__CalculateMask(image_A, image_B, nullptr, nullptr);
+    const auto mask = HWY_NAMESPACE::__CalculateMask(image_A, image_B, nullptr, nullptr, 100);
     hw::StoreMaskBits(d, mask, (uint8_t*)&result);
 
     // Make sure each case is _actually_ hit in the test data...
@@ -172,8 +172,8 @@ TEST(GradientClusters, SimdGradientClustersCalculations) {
 
     uint64_t result[sizeof(image_A) * 2];
 
-    int written = HWY_NAMESPACE::__CalculateAndStoreGradientVector<0, 1>(image_A, image_B, labels_A,
-                                                                         labels_B, 0, 0, result);
+    int written = HWY_NAMESPACE::__CalculateAndStoreGradientVector<0, 1>(
+            image_A, image_B, labels_A, labels_B, 0, 0, 100, result);
 
     int idx = 0;
     for (int i = 0; i < N; i++) {

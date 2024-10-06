@@ -2,6 +2,8 @@
 
 #include <fmt/format.h>
 
+#include <opencv2/opencv.hpp>
+
 #include "apriltag.h"
 #include "common/image_u8x3.h"
 #include "common/unionfind.h"
@@ -105,4 +107,26 @@ void WriteGradientClusters(int w, int h, zarray_t *clusters) {
 
     image_u8x3_write_pnm(d, "debug_clusters.pnm");
     image_u8x3_destroy(d);
+}
+
+cv::Mat1b DrawGradientClustersBlackAndWhite(int w, int h, zarray_t *clusters) {
+    cv::Mat1b result = cv::Mat::zeros(cv::Size(w, h), CV_8UC1);
+
+    image_u8x3_t *d = image_u8x3_create(w, h);
+
+    for (int i = 0; i < zarray_size(clusters); i++) {
+        zarray_t *cluster;
+        zarray_get(clusters, i, &cluster);
+
+        for (int j = 0; j < zarray_size(cluster); j++) {
+            struct pt *p;
+            zarray_get_volatile(cluster, j, &p);
+
+            int x = p->x / 2;
+            int y = p->y / 2;
+            result.at<uint8_t>(y, x) += 255 >> 2;
+        }
+    }
+
+    return result;
 }
