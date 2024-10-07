@@ -7,6 +7,7 @@
 #include <array>
 #include <new>
 #include <opencv2/core.hpp>
+#include <string>
 #include <vector>
 
 #include "HalideBuffer.h"
@@ -110,6 +111,13 @@ class GradientPoint {
         return static_cast<int>((value_ & 0x6u) >> 1);
     }
 
+    std::string ToString() {
+        std::string result;
+        fmt::format_to(std::back_inserter(result), "(x, y) ({},{}), Grad (x, y): ({},{}) B-->W: {}",
+                       GetX(), GetY(), GetDx(), GetDy(), GetBlackToWhite());
+        return result;
+    }
+
    private:
     uint32_t value_;
 };
@@ -200,7 +208,7 @@ inline auto __CalculateMask(const uint8_t* img_A, const uint8_t* img_B, const ui
     // v0 + v1 == 255
     // rep0.size > 24
     // rep1.size > 24
-    // connected_last
+    // connected_last (dedup)
 
     constexpr hw::ScalableTag<uint32_t> d;
     constexpr int N = hw::Lanes(d);
@@ -262,8 +270,49 @@ inline auto __CalculateAndStoreGradientVector(const uint8_t* img, const uint8_t*
     // Actual calculations
     const auto vvalues = HWY_NAMESPACE::__CalculateValue<DX, DY>(img, image_B + DX, col, row);
     const auto vhash = HWY_NAMESPACE::__CalculateHashes(labels, labels_B + DX);
-    const auto mask = HWY_NAMESPACE::__CalculateMask(img, image_B + DX, labels, labels_B + DX,
-                                                     img_width - col);
+    auto mask = HWY_NAMESPACE::__CalculateMask(img, image_B + DX, labels, labels_B + DX,
+                                               img_width - col);
+
+    // Dedup, only for <-1, 1> case
+    if constexpr (DX == -1 && DY == 1) {
+        // From frc971/orin/apriltag.cc but reworded
+        // We search the following 4 neighbors.
+        //      ________
+        //      | x | 0 |
+        //  -------------
+        //  | 3 | 2 | 1 |
+        //  -------------
+        //
+        // If connection between block x and block 1 has the same IDs as the connection between
+        // blocks 0 and 2, we will have a duplicate entry. This may not be so intuitive at first.
+        // The easiest way to see it is this is the exact same point. It may look like they be
+        // merged, since the gradient direction could be different. However that is not actually the
+        // case, since this duplicate can only happen in two cases. All other cases will be filered
+        // out. Apriltag comment says it a bit more clearly (Also thanks Austin)
+
+        // Checking 1, 1 on the previous x, y, and -1, 1 on the current
+        // x, y result in duplicate points in the final list.  Only
+        // check the potential duplicate if adding this one won't
+        // create a duplicate.
+
+        // The cases are
+        //       id(x) == id(0) and id(2) == id(1),
+        //    or id(x) == id(2) and id(0) == id(1).
+        // We need to pick a single element to _not_ add. We could choose block 1, however that
+        // would make handling across the last edge harder. Insead, don't add block 3. In that case
+        // it becomes
+        //       id(x-1) == id(x) and id(2) == id(3),
+        //    or id(x-1) == id(3) and id(x) == id(2).
+        const auto v_idxm1 = hw::LoadU(d, labels - 1);
+        const auto v_idx = hw::LoadU(d, labels);
+        const auto v_id2 = hw::LoadU(d, labels_row2);
+        const auto v_id3 = hw::LoadU(d, labels_row2 - 1);
+
+        const auto mdup1 = hw::And(v_idxm1 == v_idx, v_id2 == v_id3);
+        const auto mdup2 = hw::And(v_idxm1 == v_id3, v_idx == v_id2);
+        const auto mdup = hw::Or(mdup1, mdup2);
+        mask = hw::AndNot(mdup, mask);
+    }
 
     // Convert 4 32bit into two 64 bit (hash << 32 | value)
     const auto vhash64_u = hw::PromoteUpperTo(d64, vhash);
@@ -277,12 +326,6 @@ inline auto __CalculateAndStoreGradientVector(const uint8_t* img, const uint8_t*
     // so speed up will all come down to memory speed.
     const auto mask_u = hw::PromoteMaskTo(d64, dHalf, UpperHalfOfMask(dHalf, mask));
     const auto mask_l = hw::PromoteMaskTo(d64, dHalf, LowerHalfOfMask(dHalf, mask));
-
-    // if (hw::CountTrue(d, mask)) {
-    //     HWY_NAMESPACE::PrintMask(d, "mask>", mask);
-    //     HWY_NAMESPACE::PrintMask(d64, "mask_u>", mask_u);
-    //     HWY_NAMESPACE::PrintMask(d64, "mask_l>", mask_l);
-    // }
 
     int mask_l_size = hw::CountTrue(d64, mask_l);
     hw::CompressBlendedStore(out_l, mask_l, d64, output);
@@ -329,6 +372,7 @@ class GradientClusters {
                 new (std::align_val_t(64)) uint64_t[size.width * size.height * 4];
     }
 
+    // TODO: Pass in buffer here, make a fcn to return a buffer as well
     void Perform(cv::Mat1b& input, cv::Mat1i& labels, BMRS const& connected_components) {
         // TODO: Note this whole function should move into HWY_NAMESPACE above to get lane counts
         constexpr hw::ScalableTag<uint32_t> d;
@@ -348,13 +392,13 @@ class GradientClusters {
                 top += HWY_NAMESPACE::__CalculateAndStoreGradientVector<1, 0>(
                         pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols,
                         compressed_gradient_points_ + top);
+                top += HWY_NAMESPACE::__CalculateAndStoreGradientVector<0, 1>(
+                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols,
+                        compressed_gradient_points_ + top);
                 top += HWY_NAMESPACE::__CalculateAndStoreGradientVector<1, 1>(
                         pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols,
                         compressed_gradient_points_ + top);
                 top += HWY_NAMESPACE::__CalculateAndStoreGradientVector<-1, 1>(
-                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols,
-                        compressed_gradient_points_ + top);
-                top += HWY_NAMESPACE::__CalculateAndStoreGradientVector<0, 1>(
                         pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols,
                         compressed_gradient_points_ + top);
             }
@@ -442,6 +486,14 @@ class GradientClusters {
         //     int dir = value & 3;
         //     fmt::print("{{{}x{} : {} }} ", x, y, dir);
         // });
+    }
+
+    int Size() {
+        return points_;
+    }
+
+    uint64_t* GetBuffer() {
+        return compressed_gradient_points_;
     }
 };
 

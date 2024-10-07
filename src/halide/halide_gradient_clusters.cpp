@@ -15,7 +15,7 @@ class GradientClusters : public Halide::Generator<GradientClusters> {
     Var x{"x"}, y{"y"}, c{"c"};
 
     void generate() {
-        // From frc971/orin/apriltag.cc
+        // From frc971/orin/apriltag.cc but reworded
         // We search the following 4 neighbors.
         //      ________
         //      | x | 0 |
@@ -23,10 +23,19 @@ class GradientClusters : public Halide::Generator<GradientClusters> {
         //  | 3 | 2 | 1 |
         //  -------------
         //
-        //  If connection 3 has the same IDs as the connection between blocks 0 and 2,
-        //  we will have a duplicate entry.  Detect and don't add it.  This will only
-        //  happen if id(x) == id(0) and id(2) == id(3),
-        //         or id(x) == id(2) and id(0) == id(3).
+        // If connection between block x and block 1 has the same IDs as the connection between
+        // blocks 0 and 2, we will have a duplicate entry. This may not be so intuitive at first.
+        // The easiest way to see it is this is the exact same point. It may look like they be
+        // merged, since the gradient direction could be different. However that is not actually the
+        // case, since this duplicate can only happen in two cases. All other cases will be filered
+        // out. The cases are
+        //       id(x) == id(0) and id(2) == id(1),
+        //    or id(x) == id(2) and id(0) == id(1).
+        // We need to pick a single element to _not_ add. We could choose block 1, however that
+        // would make handling across the last edge harder. Insead, don't add block 3. In that case
+        // it becomes
+        //       id(x-1) == id(x) and id(2) == id(3),
+        //    or id(x-1) == id(3) and id(x) == id(2).
 
         // Func clamped_input = BoundaryConditions::constant_exterior(input, Expr(127));
         // Func clamped_labels = BoundaryConditions::constant_exterior(labels, Expr(127));

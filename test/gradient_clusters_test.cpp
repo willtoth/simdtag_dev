@@ -4,11 +4,17 @@
 #include <stdint.h>
 
 #include <cstdlib>
+#include <opencv2/opencv.hpp>
 
+#include "ccl/bmrs.h"
+#include "fmt/format.h"
 #include "hwy/highway.h"
 #include "simdtag/highway_utils.h"
+#include "threshold.h"
 
 namespace hw = hwy::HWY_NAMESPACE;
+
+#define IMAGE_PATH CMAKE_PROJECT_SOURCE_DIR "/assets/apriltag/shapes.png"
 
 using namespace simdtag;
 
@@ -188,4 +194,31 @@ TEST(GradientClusters, SimdGradientClustersCalculations) {
     }
 
     EXPECT_EQ(written, idx);
+}
+
+TEST(GradientClusters, SimdGradientClustersDups) {
+    cv::Mat1b input = cv::imread(IMAGE_PATH, cv::IMREAD_GRAYSCALE);
+    cv::Mat1b threshold = cv::Mat1b{input.size(), 0};
+    cv::Mat1i labels = cv::Mat1i{input.size(), 0};
+    simdtag::BMRS ccl{input.size()};
+    simdtag::GradientClusters gc{input.size()};
+
+    simdtag::AdaptiveThreshold(input, threshold);
+    ccl.PerformLabelingDual(threshold, labels);
+
+    gc.Perform(threshold, labels, ccl);
+    uint64_t* buffer = gc.GetBuffer();
+
+    for (int i = 1; i < gc.Size(); i++) {
+        // Sorted right after gc.Perform, so check for for dups
+        uint64_t val = buffer[i] & ~0x6;
+        uint64_t val_prev = buffer[i - 1] & ~0x6;
+        EXPECT_FALSE(val == val_prev);
+
+        if (val == val_prev) {
+            fmt::print("Hash: {:x} {} --> Hash: {:x} {}", buffer[i] >> 32,
+                       GradientPoint((uint32_t)buffer[i]).ToString(), buffer[i - 1] >> 32,
+                       GradientPoint((uint32_t)buffer[i - 1]).ToString());
+        }
+    }
 }

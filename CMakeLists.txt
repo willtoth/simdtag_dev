@@ -140,7 +140,7 @@ if(WITH_TESTS)
 
     add_executable(simdtag_test ${test_source})
     target_compile_options(simdtag_test PUBLIC ${COMMON_COMPILE_OPTIONS})
-    target_link_libraries(simdtag_test ${COMMON_LINK_TARGETS} GTest::gtest_main simdtag halide_gradient_clusters)
+    target_link_libraries(simdtag_test ${COMMON_LINK_TARGETS} GTest::gtest_main simdtag halide_gradient_clusters adaptive_threshold)
     target_compile_definitions(simdtag_test PUBLIC ${COMMON_TARGET_DEFINES})
     target_include_directories(simdtag_test PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
 
