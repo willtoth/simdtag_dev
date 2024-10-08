@@ -202,23 +202,24 @@ TEST(GradientClusters, SimdGradientClustersDups) {
     cv::Mat1i labels = cv::Mat1i{input.size(), 0};
     simdtag::BMRS ccl{input.size()};
     simdtag::GradientClusters gc{input.size()};
+    simdtag::GradientClusterBuffer buffer{input.size()};
 
     simdtag::AdaptiveThreshold(input, threshold);
     ccl.PerformLabelingDual(threshold, labels);
 
-    gc.Perform(threshold, labels, ccl);
-    uint64_t* buffer = gc.GetBuffer();
+    gc.Perform(threshold, labels, buffer);
+    uint64_t* outbuffer = buffer.__Get();
 
     for (int i = 1; i < gc.Size(); i++) {
         // Sorted right after gc.Perform, so check for for dups
-        uint64_t val = buffer[i] & ~0x6;
-        uint64_t val_prev = buffer[i - 1] & ~0x6;
+        uint64_t val = outbuffer[i] & ~0x6;
+        uint64_t val_prev = outbuffer[i - 1] & ~0x6;
         EXPECT_FALSE(val == val_prev);
 
         if (val == val_prev) {
-            fmt::print("Hash: {:x} {} --> Hash: {:x} {}", buffer[i] >> 32,
-                       GradientPoint((uint32_t)buffer[i]).ToString(), buffer[i - 1] >> 32,
-                       GradientPoint((uint32_t)buffer[i - 1]).ToString());
+            fmt::print("Hash: {:x} {} --> Hash: {:x} {}", outbuffer[i] >> 32,
+                       GradientPoint((uint32_t)outbuffer[i]).ToString(), outbuffer[i - 1] >> 32,
+                       GradientPoint((uint32_t)outbuffer[i - 1]).ToString());
         }
     }
 }

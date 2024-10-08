@@ -1,7 +1,5 @@
 #pragma once
 
-#define EMH_EXT
-
 #include <fmt/format.h>
 
 #include <array>
@@ -10,11 +8,8 @@
 #include <string>
 #include <vector>
 
-#include "HalideBuffer.h"
 #include "ccl/bmrs.h"
-#include "halide_gradient_clusters.h"
 #include "simdtag/highway_utils.h"
-#include "third_party/emhash/hash_table7.hpp"
 
 // clang-format off
 
@@ -27,28 +22,25 @@
 
 // clang-format on
 
-using HashMapType = emhash7::HashMap<uint32_t, std::vector<uint32_t>>;
-
-extern "C" uint32_t __HashMapInsert(void* hashmap, uint32_t hash, uint32_t value) {
-    if (value == 0) {
-        return 0;
-    }
-
-    HashMapType* m = (HashMapType*)hashmap;
-    auto* pvalue = m->try_get(hash);
-    if (pvalue) {
-        pvalue->push_back(value);
-    } else {
-        std::vector<uint32_t> storage;
-        storage.reserve(2048);
-        m->emplace_unique(hash, std::move(storage));
-    }
-    return 0;
-}
-
 namespace hw = hwy::HWY_NAMESPACE;
 
 namespace simdtag {
+
+class GradientClusterBuffer {
+   public:
+    GradientClusterBuffer(cv::Size size) {
+        buffer_ = new (std::align_val_t(64)) uint64_t[size.width * size.height * 4];
+    }
+
+    uint64_t* __Get() {
+        return buffer_;
+    }
+
+   protected:
+    uint64_t* buffer_;
+
+    friend class GradientClusters;
+};
 
 // TODO: Make a nicer class for this in the library
 class GradientPoint {
@@ -334,49 +326,23 @@ inline auto __CalculateAndStoreGradientVector(const uint8_t* img, const uint8_t*
     return mask_l_size + hw::CountTrue(d64, mask_u);
 }
 
-inline int __CopyIf(uint64_t* __restrict dst, const uint64_t* __restrict src, size_t count) {
-    constexpr hw::ScalableTag<uint64_t> d;
-    constexpr int N = hw::Lanes(d);
-
-    // uint64_t* end = hw::CopyIf(d, src, double_words, dst,
-    //                            [](const auto d, const auto v) {
-    //                             return v == hw::Zero(d);
-    //                             });
-    uint64_t* __restrict ptr = dst;
-    size_t idx = 0;
-    if (count >= N) {
-        for (; idx <= count - N; idx += N) {
-            auto v = Load(d, src + idx);
-            ptr += CompressBlendedStore(v, v != hw::Zero(d), d, ptr);
-        }
-    }
-
-    return (int)(ptr - dst);
-}
-
 }  // namespace HWY_NAMESPACE
 HWY_AFTER_NAMESPACE();
 
 class GradientClusters {
    private:
-    // TODO: This will be a planar layout, experiment with interleaved and linear
-    Halide::Runtime::Buffer<uint64_t> sparse_gradient_points_;
-    uint64_t* compressed_gradient_points_;
     int points_;
     cv::Size size_;
 
    public:
-    GradientClusters(cv::Size size)
-        : sparse_gradient_points_{size.width, size.height, 4}, size_(size) {
-        compressed_gradient_points_ =
-                new (std::align_val_t(64)) uint64_t[size.width * size.height * 4];
+    GradientClusters(cv::Size size) : size_(size) {
     }
 
-    // TODO: Pass in buffer here, make a fcn to return a buffer as well
-    void Perform(cv::Mat1b& input, cv::Mat1i& labels, BMRS const& connected_components) {
-        // TODO: Note this whole function should move into HWY_NAMESPACE above to get lane counts
+    void Perform(cv::Mat1b& input, cv::Mat1i& labels, GradientClusterBuffer& gcb) {
+        // TODO: This should move to a function call
         constexpr hw::ScalableTag<uint32_t> d;
         constexpr int N = hw::Lanes(d);
+        uint64_t* buffer = gcb.buffer_;
         int top = 0;
         for (int r = 0; r < input.rows - 1; r++) {
             uint32_t* pLabels_start = labels.ptr<uint32_t>(r);
@@ -390,26 +356,22 @@ class GradientClusters {
                 uint8_t* pimg = pimg_start + c;
                 uint8_t* pimg_next = pimg_next_start + c;
                 top += HWY_NAMESPACE::__CalculateAndStoreGradientVector<1, 0>(
-                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols,
-                        compressed_gradient_points_ + top);
+                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols, buffer + top);
                 top += HWY_NAMESPACE::__CalculateAndStoreGradientVector<0, 1>(
-                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols,
-                        compressed_gradient_points_ + top);
+                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols, buffer + top);
                 top += HWY_NAMESPACE::__CalculateAndStoreGradientVector<1, 1>(
-                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols,
-                        compressed_gradient_points_ + top);
+                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols, buffer + top);
                 top += HWY_NAMESPACE::__CalculateAndStoreGradientVector<-1, 1>(
-                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols,
-                        compressed_gradient_points_ + top);
+                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols, buffer + top);
             }
         }
         points_ = top;
-        hw::VQSortStatic(compressed_gradient_points_, top, hwy::SortDescending{});
+        hw::VQSortStatic(buffer, top, hwy::SortDescending{});
     }
 
-    void Print(int cols = 4) {
+    void Print(GradientClusterBuffer& gcb, int cols = 4) {
         for (int i = 0; i < points_; i++) {
-            uint64_t val = compressed_gradient_points_[i];
+            uint64_t val = gcb.buffer_[i];
             uint32_t hash = val >> 32;
             GradientPoint p{static_cast<uint32_t>(val)};
             fmt::print("{} - x:{} y:{} ", hash, p.GetX(), p.GetY());
@@ -420,11 +382,11 @@ class GradientClusters {
         }
     }
 
-    cv::Mat1b Draw() {
+    cv::Mat1b Draw(GradientClusterBuffer& gcb) {
         cv::Mat1b result = cv::Mat::zeros(size_, CV_8UC1);
 
         for (int i = 0; i < points_; i++) {
-            GradientPoint p{static_cast<uint32_t>(compressed_gradient_points_[i])};
+            GradientPoint p{static_cast<uint32_t>(gcb.buffer_[i])};
             int y = (int)p.GetY();
             int x = (int)p.GetX();
             if (y < 0 || y >= size_.height || x < 0 || x >= size_.width) {
@@ -440,60 +402,8 @@ class GradientClusters {
         return result;
     }
 
-    void PerformHalide(cv::Mat1b const& input, cv::Mat1i& labels,
-                       BMRS const& connected_components) {
-        Halide::Runtime::Buffer<uint8_t> halide_threshold =
-                Halide::Runtime::Buffer<uint8_t>::make_interleaved(input.data, input.cols,
-                                                                   input.rows, input.channels());
-
-        Halide::Runtime::Buffer<int> halide_labels = Halide::Runtime::Buffer<int>::make_interleaved(
-                (int*)labels.data, labels.cols, labels.rows, labels.channels());
-
-        int error =
-                halide_gradient_clusters(halide_threshold, halide_labels, sparse_gradient_points_);
-
-        size_t double_words = sparse_gradient_points_.size_in_bytes() / 8;
-
-        int cnt = HWY_NAMESPACE::__CopyIf(compressed_gradient_points_,
-                                          sparse_gradient_points_.data(), double_words);
-
-        hw::VQSortStatic(compressed_gradient_points_, cnt, hwy::SortDescending{});
-
-        [[unlikely]]
-        if (error) {
-            fmt::println("Halide returned an error: %d\n", error);
-            return;
-        }
-
-        // for (auto& k : hash_map_) {
-        //     fmt::print("{}: ", k.first);
-
-        //     for (auto& value : k.second) {
-        //         int x = (value >> 20) & 0x7FF;
-        //         int y = (value >> 8) & 0x7FF;
-        //         int dir = value & 3;
-        //         fmt::print("{{{}x{} : {} }} ", x, y, dir);
-        //     }
-        //     fmt::println("");
-        // }
-
-        // sparse_gradient_points_.for_each_value([](uint32_t& value) {
-        //     if (value == 0) {
-        //         return;
-        //     }
-        //     int x = (value >> 20) & 0x7FF;
-        //     int y = (value >> 8) & 0x7FF;
-        //     int dir = value & 3;
-        //     fmt::print("{{{}x{} : {} }} ", x, y, dir);
-        // });
-    }
-
     int Size() {
         return points_;
-    }
-
-    uint64_t* GetBuffer() {
-        return compressed_gradient_points_;
     }
 };
 

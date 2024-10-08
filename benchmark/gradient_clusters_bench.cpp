@@ -13,6 +13,7 @@
 #include "common/unionfind.h"
 #include "common/workerpool.h"
 #include "gradient_clusters.h"
+#include "halide/bm_only_halide_gradient_clusters.h"
 #include "simdtag/vision_utils.h"
 #include "threshold.h"
 
@@ -25,43 +26,6 @@ extern unionfind_t* connected_components(apriltag_detector_t* td, image_u8_t* th
                                          int h, int ts);
 extern zarray_t* gradient_clusters(apriltag_detector_t* td, image_u8_t* threshim, int w, int h,
                                    int ts, unionfind_t* uf);
-
-int32_t __TEST123(int32_t x, int32_t y) {
-    static int32_t i = 1;
-    // fmt::print("{},{} - {}  ", x, y, i);
-    return i++;
-}
-}
-
-static void BM_TryGc() {  //(benchmark::State& state) {
-    cv::Mat1b input = cv::imread(IMAGE_PATH2, cv::IMREAD_GRAYSCALE);
-    cv::Mat1i labels = cv::Mat1i{input.size(), 0};
-    simdtag::BMRS ccl{input.size()};
-    ccl.PerformLabelingDual(input, labels);
-    simdtag::GradientClusters gc{input.size()};
-    gc.Perform(input, labels, ccl);
-}
-
-static void BM_GenerateTestData() {  //(benchmark::State& state) {
-    apriltag_detector_t* td = DefaultApriltagDetector();
-
-    cv::Mat1b gray = cv::imread(IMAGE_PATH2, cv::IMREAD_GRAYSCALE);
-    image_u8_t im = {gray.cols, gray.rows, gray.cols, gray.data};
-    int w = im.width, h = im.height;
-
-    // image_u8_t* threshim = threshold(td, &im);
-    int ts = im.stride;
-    unionfind_t* uf = connected_components(td, &im, w, h, ts);
-
-    WriteConnectedComponents(td, w, h, uf);
-
-    zarray_t* out = gradient_clusters(td, &im, w, h, ts, uf);
-
-    PrintGradientClusters(out);
-    WriteGradientClusters(w, h, out);
-
-    // for (auto _ : state) {
-    // }
 }
 
 static void BM_GradientClusters(benchmark::State& state) {
@@ -70,12 +34,13 @@ static void BM_GradientClusters(benchmark::State& state) {
     cv::Mat1i labels = cv::Mat1i{input.size(), 0};
     simdtag::BMRS ccl{input.size()};
     simdtag::GradientClusters gc{input.size()};
+    simdtag::GradientClusterBuffer buffer{input.size()};
 
     simdtag::AdaptiveThreshold(input, threshold);
     ccl.PerformLabelingDual(threshold, labels);
 
     for (auto _ : state) {
-        gc.Perform(threshold, labels, ccl);
+        gc.Perform(threshold, labels, buffer);
     }
 }
 
@@ -84,7 +49,7 @@ static void BM_HalideGradientClusters(benchmark::State& state) {
     cv::Mat1b threshold = cv::Mat1b{input.size(), 0};
     cv::Mat1i labels = cv::Mat1i{input.size(), 0};
     simdtag::BMRS ccl{input.size()};
-    simdtag::GradientClusters gc{input.size()};
+    simdtag::HalideGradientClusters gc{input.size()};
 
     simdtag::AdaptiveThreshold(input, threshold);
     ccl.PerformLabelingDual(threshold, labels);
@@ -94,10 +59,10 @@ static void BM_HalideGradientClusters(benchmark::State& state) {
                 simdtag::CreateLabeledImage(labels, ccl.LabelCount()));
 
     for (auto _ : state) {
-        gc.PerformHalide(threshold, labels, ccl);
+        gc.Perform(threshold, labels);
     }
 
-    gc.PerformHalide(threshold, labels, ccl);
+    gc.Perform(threshold, labels);
 }
 
 static void BM_AprilTagGradientClusters(benchmark::State& state) {
@@ -125,17 +90,8 @@ static void BM_AprilTagGradientClusters(benchmark::State& state) {
     }
 }
 
-#if 1
 BENCHMARK(BM_GradientClusters);
 BENCHMARK(BM_HalideGradientClusters);
 BENCHMARK(BM_AprilTagGradientClusters);
 
 BENCHMARK_MAIN();
-
-#else
-int main() {
-    // BM_GenerateTestData();
-    BM_TryGc();
-    return 0;
-}
-#endif

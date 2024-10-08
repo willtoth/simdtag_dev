@@ -33,11 +33,12 @@ static void BM_SimdTag(benchmark::State& state) {
     cv::Mat1i labels = cv::Mat1i{input.size(), 0};
     simdtag::BMRS ccl{input.size()};
     simdtag::GradientClusters gc{input.size()};
+    simdtag::GradientClusterBuffer buffer{input.size()};
 
     for (auto _ : state) {
         simdtag::AdaptiveThreshold(input, threshold);
         ccl.PerformLabelingDual(threshold, labels);
-        gc.Perform(threshold, labels, ccl);
+        gc.Perform(threshold, labels, buffer);
     }
 }
 
