@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-#include "ccl/bmrs.h"
+#include "gradient_point.h"
 #include "simdtag/highway_utils.h"
 
 // clang-format off
@@ -28,90 +28,29 @@ namespace simdtag {
 
 class GradientClusterBuffer {
    public:
-    GradientClusterBuffer(cv::Size size) {
+    GradientClusterBuffer(cv::Size size) : elements_(0) {
         buffer_ = new (std::align_val_t(64)) uint64_t[size.width * size.height * 4];
     }
 
-    uint64_t* __Get() {
-        return buffer_;
+    GradientClusterBuffer(uint64_t* buffer, int elements) : buffer_(buffer), elements_(elements) {
+    }
+
+    // Budget friendly invalidation of object, gives up ownership of buffer
+    uint64_t* Take() {
+        uint64_t* result = buffer_;
+        buffer_ = nullptr;
+        return result;
+    }
+
+    size_t Size() {
+        return elements_;
     }
 
    protected:
     uint64_t* buffer_;
+    size_t elements_;
 
     friend class GradientClusters;
-};
-
-// TODO: Make a nicer class for this in the library
-class GradientPoint {
-   public:
-    GradientPoint(uint32_t value) : value_(value) {
-    }
-
-    GradientPoint() : value_(0) {
-    }
-
-    void SetX(int x) {
-        value_ = (value_ & 0x000FFFFFu) | ((x * 2) << 20);
-    }
-
-    void SetY(int y) {
-        value_ = (value_ & 0xFFF000FFu) | ((y * 2) << 8);
-    }
-
-    void SetDxDy(int dx, int dy) {
-        value_ &= ~0x6;
-        uint32_t tmp = 0;
-
-        value_ |= tmp << 1;
-    }
-
-    void SetBlackToWhite(int v0, int v1) {
-        value_ &= ~1;
-        value_ |= (v0 < v1);
-    }
-
-    float GetX() {
-        return static_cast<float>(value_ >> 20) / 2.0f;
-    }
-
-    float GetY() {
-        return static_cast<float>((value_ & 0x000FFF00u) >> 8) / 2.0f;
-    }
-
-    int GetDx() {
-        switch (GradientValue()) {
-            case 0:
-            case 1:
-                return 1;
-            case 3:
-                return -1;
-            default:
-                return 0;
-        }
-    }
-
-    int GetDy() {
-        return GradientValue() != 0;
-    }
-
-    bool GetBlackToWhite() {
-        return value_ & 1;
-    }
-
-    int GradientValue() {
-        return static_cast<int>((value_ & 0x6u) >> 1);
-    }
-
-    std::string ToString() {
-        std::string result;
-        fmt::format_to(std::back_inserter(result), "(x, y) ({},{}), Grad (x, y): ({},{}) B-->W: {}",
-                       GetX(), GetY(), GetDx(), GetDy(), GetBlackToWhite());
-        return result;
-    }
-
-   private:
-    uint32_t value_;
 };
 
 HWY_BEFORE_NAMESPACE();
@@ -173,7 +112,7 @@ inline V32 __CalculateValue(const uint8_t* img_A, const uint8_t* img_B, int x, i
 
     constexpr uint32_t dxy_mask = static_cast<uint32_t>(-(DX - 1) + DY) << 1;
 
-    const auto vSequenceX = hw::Load(d, kSequenceBuffer.data());
+    const auto vSequenceX = hw::LoadU(d, kSequenceBuffer.data());
 
     // 2 * x + dx & 0x0FFF x is x + (i) for simd width
     // 12 bits total, 2x that, so largert image is 2047 x 2047
@@ -366,6 +305,7 @@ class GradientClusters {
             }
         }
         points_ = top;
+        gcb.elements_ = top;
         hw::VQSortStatic(buffer, top, hwy::SortDescending{});
     }
 

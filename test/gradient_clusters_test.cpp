@@ -208,7 +208,7 @@ TEST(GradientClusters, SimdGradientClustersDups) {
     ccl.PerformLabelingDual(threshold, labels);
 
     gc.Perform(threshold, labels, buffer);
-    uint64_t* outbuffer = buffer.__Get();
+    uint64_t* outbuffer = buffer.Take();
 
     for (int i = 1; i < gc.Size(); i++) {
         // Sorted right after gc.Perform, so check for for dups
@@ -223,3 +223,5 @@ TEST(GradientClusters, SimdGradientClustersDups) {
         }
     }
 }
+
+// TODO: Add a test against an entire image

@@ -141,8 +141,8 @@ void TestU8ToU32() {
 void CompressStore() {
     constexpr hw::ScalableTag<uint64_t> d;
     constexpr int N = hw::Lanes(d);
-    alignas(64) uint64_t maskbuffer[N] = {255, 255, 0, 255, 0, 0, 0, 255};
-    alignas(64) uint64_t inbuffer[N] = {21, 22, 23, 24, 25, 26, 27, 28};
+    alignas(64) uint64_t maskbuffer[] = {255, 255, 0, 255, 0, 0, 0, 255};
+    alignas(64) uint64_t inbuffer[] = {21, 22, 23, 24, 25, 26, 27, 28};
     alignas(64) uint64_t outbuffer[N + 1];
     for (int i = 0; i < N + 1; i++) {
         outbuffer[i] = 1;
