@@ -258,11 +258,8 @@ inline auto __CalculateAndStoreGradientVector(const uint8_t* img, const uint8_t*
     const auto mask_u = hw::PromoteMaskTo(d64, dHalf, UpperHalfOfMask(dHalf, mask));
     const auto mask_l = hw::PromoteMaskTo(d64, dHalf, LowerHalfOfMask(dHalf, mask));
 
-    int mask_l_size = hw::CountTrue(d64, mask_l);
-    hw::CompressBlendedStore(out_l, mask_l, d64, output);
-    hw::CompressBlendedStore(out_u, mask_u, d64, output + mask_l_size);
-
-    return mask_l_size + hw::CountTrue(d64, mask_u);
+    int mask_l_size = hw::CompressStore(out_l, mask_l, d64, output);
+    return mask_l_size + hw::CompressStore(out_u, mask_u, d64, output + mask_l_size);
 }
 
 }  // namespace HWY_NAMESPACE

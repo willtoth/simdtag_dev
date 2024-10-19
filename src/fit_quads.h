@@ -29,8 +29,8 @@ V32 __GetYVector(const V32& vvalue) {
 }
 
 QuadCluster __FindQuadCluster(uint64_t* buffer, size_t start, size_t elements) {
-    constexpr hw::ScalableTag<uint32_t> d;
-    constexpr int N = hw::Lanes(d);
+    // constexpr hw::ScalableTag<uint32_t> d;
+    // constexpr int N = hw::Lanes(d);
     // using VecT = Vec<decltype(d)>;
 
     // assert(elements > 0);
@@ -41,16 +41,20 @@ QuadCluster __FindQuadCluster(uint64_t* buffer, size_t start, size_t elements) {
 
     // // Create a vector of the first encountered hash (top 32 bits) to detect when this changes on
     // a
-    // // boundary between clusters
-    // const auto vcurrent_hash = hw::LoadU(d, Set(d, static_cast<uint32_t>(buffer[0] >> 32)));
+    //         // boundary between clusters
+    //         const auto vcurrent_hash = hw::LoadU(d, Set(d, static_cast<uint32_t>(buffer[0] >>
+    //         32)));
     // bool isBoundary = false;
 
     // hw::MFromD<decltype(d)> mask;
     // for (length = 0; length < elements && !isBoundary; length += N) {
     //     // TODO: Try either unrolling this a bit (manually) or just loading more of the buffer at
     //     a
-    //     // time Load interleaved, reduction happens on lower half, boundary detection on top half
-    //     VecT vvalue, vhash;
+    //             // time Load interleaved, reduction happens on lower half, boundary detection on
+    //             top
+    //             // half
+    //                     VecT vvalue,
+    //             vhash;
     //     uint32_t* element = ((uint32_t*)buffer) + length;
     //     hw::LoadInterleaved2(d, element, vvalue, vhash);
 

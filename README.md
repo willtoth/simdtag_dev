@@ -34,6 +34,31 @@ Some other technical notes:
 - Compilers are able to generate and auto-vectorize portions of code, handle loop unrolling etc. It would be nice to be able to write normal C/C++ code and let the compiler deal with it. Unfortunately its not so simple all of the time. One example is an iteration of some of the algorithm, which used templates to define the width and height. The compiler did a great job of loop unrolling and some vectorization. However it was not always the case, and upon inspection of generated assembly, it was clear that some sections I had expected to be vectorized were not. So explicit vectorization was chosen. Another advantage of that approach is the tendency to write the code specifically for SIMD. This includes things like extending to be aligned to the SIMD width, or doing more conditional logic as mask computations instead.
 - There are a few locations where memory locality plays a much more critical role than pure compute. There is already a decent amount of work that was already done by apriltag to optimize here. That means some possible performance gains are more difficult in these areas.
 
+## Building
+
+### Requirements
+
+- cmake
+- clang (18.0 used in tests)
+- opencv
+- highway
+- halide
+
+`sudo apt install cmake build-essential clang clang-18 libopencv-dev`
+
+```
+git clone https://github.com/google/highway.git
+git checkout 1.2.0
+cd highway
+mkdir build && cd build
+cmake -DHWY_ENABLE_TESTS=OFF -DHWY_ENABLE_EXAMPLES=OFF -DCMAKE_BUILD_TYPE=Release ..
+make
+sudo make install
+```
+
+
+
+
 ## Credit
 
 [Apriltag]()
