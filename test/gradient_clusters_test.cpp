@@ -5,13 +5,13 @@
 
 #include <cstdlib>
 #include <opencv2/opencv.hpp>
+#include <unordered_set>
 
 #include "ccl/bmrs.h"
 #include "fmt/format.h"
 #include "hwy/highway.h"
 #include "simdtag/highway_utils.h"
 #include "threshold.h"
-
 namespace hw = hwy::HWY_NAMESPACE;
 
 #define IMAGE_PATH CMAKE_PROJECT_SOURCE_DIR "/assets/apriltag/shapes.png"
@@ -164,7 +164,7 @@ TEST(GradientClusters, SimdMaskCalculation) {
     // v0 + v1 == 255
 }
 
-#if 0
+#if 0  // TODO Fix these!
 TEST(GradientClusters, SimdGradientClustersCalculations) {
     // Test by 32bit
     constexpr hw::ScalableTag<uint32_t> d;
@@ -204,24 +204,29 @@ TEST(GradientClusters, SimdGradientClustersDups) {
     cv::Mat1i labels = cv::Mat1i{input.size(), 0};
     simdtag::BMRS ccl{input.size()};
     simdtag::GradientClusters gc{input.size()};
-    simdtag::GradientClusterBuffer buffer{input.size()};
+    simdtag::GradientClusterHash hash{100};
 
     simdtag::AdaptiveThreshold(input, threshold);
     ccl.PerformLabelingDual(threshold, labels);
 
-    gc.Perform(threshold, labels, buffer);
-    uint64_t* outbuffer = buffer.Take();
+    gc.Perform(threshold, labels, hash);
 
-    for (int i = 1; i < gc.Size(); i++) {
-        // Sorted right after gc.Perform, so check for for dups
-        uint64_t val = outbuffer[i] & ~0x6;
-        uint64_t val_prev = outbuffer[i - 1] & ~0x6;
-        EXPECT_FALSE(val == val_prev);
+    // Run twice with the same has should still not contain dups
+    gc.Perform(threshold, labels, hash);
 
-        if (val == val_prev) {
-            fmt::print("Hash: {:x} {} --> Hash: {:x} {}", outbuffer[i] >> 32,
-                       GradientPoint((uint32_t)outbuffer[i]).ToString(), outbuffer[i - 1] >> 32,
-                       GradientPoint((uint32_t)outbuffer[i - 1]).ToString());
+    std::unordered_set<uint32_t> set;
+    for (auto vit = hash.cbegin(); vit != hash.cend(); vit++) {
+        std::vector<uint32_t> cluster = vit->second;
+        for (auto it = cluster.cbegin(); it != cluster.end(); it++) {
+            // Sorted right after gc.Perform, so check for for dups
+            uint64_t val = *it & ~0x6;
+            EXPECT_FALSE(set.contains(val));
+
+            if (set.contains(val)) {
+                fmt::print("Hash: {:x} {}", vit->first, GradientPoint(val).ToString());
+            }
+
+            set.insert(val);
         }
     }
 }

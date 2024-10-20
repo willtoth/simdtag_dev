@@ -79,8 +79,7 @@ class FitQuads {
     // Two things to test here: Is it better to condense down to a single buffer of all the
     // possibly valid quads (filter out a few bad candidates). OR store a list of indexes
     // in the original buffer
-    FitQuads(GradientClusterBuffer& buffer, int clusters)
-        : buffer_(buffer.Take()), clusters_(clusters), elements_(buffer.Size()) {
+    FitQuads(GradientClusterHash& hash, int clusters) {
         // Find boundary points between each group, and filter out invalid cases
     }
 

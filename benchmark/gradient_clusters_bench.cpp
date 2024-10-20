@@ -34,13 +34,13 @@ static void BM_GradientClusters(benchmark::State& state) {
     cv::Mat1i labels = cv::Mat1i{input.size(), 0};
     simdtag::BMRS ccl{input.size()};
     simdtag::GradientClusters gc{input.size()};
-    simdtag::GradientClusterBuffer buffer{input.size()};
+    simdtag::GradientClusterHash hash{100};
 
     simdtag::AdaptiveThreshold(input, threshold);
     ccl.PerformLabelingDual(threshold, labels);
 
     for (auto _ : state) {
-        gc.Perform(threshold, labels, buffer);
+        gc.Perform(threshold, labels, hash);
     }
 }
 

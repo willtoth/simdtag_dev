@@ -29,17 +29,17 @@ static void Perf_GradientClusters() {
     cv::Mat1i labels = cv::Mat1i{input.size(), 0};
     simdtag::BMRS ccl{input.size()};
     simdtag::GradientClusters gc{input.size()};
-    simdtag::GradientClusterBuffer buffer{input.size()};
+    simdtag::GradientClusterHash hash{100};
 
     simdtag::AdaptiveThreshold(input, threshold);
     ccl.PerformLabelingDual(threshold, labels);
 
     for (int i = 0; i < PERF_ITERATION; i++) {
-        gc.Perform(threshold, labels, buffer);
+        gc.Perform(threshold, labels, hash);
     }
 
     // gc.Print(buffer);
-    cv::Mat1b result = gc.Draw(buffer);
+    cv::Mat1b result = gc.Draw(hash);
 
     std::stringstream filename;
     filename << CMAKE_PROJECT_BUILD_DIR << "/" << "GradientClustersOutput" << ".jpg";

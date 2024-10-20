@@ -3,6 +3,7 @@
 #define EMH_EXT
 
 #include <fmt/format.h>
+#include <hwy/highway.h>
 
 #include <array>
 #include <new>
@@ -14,49 +15,11 @@
 #include "simdtag/highway_utils.h"
 #include "third_party/emhash/hash_table7.hpp"
 
-// clang-format off
-
-#include <hwy/highway.h>
-
-#define VQSORT_ONLY_STATIC 1
-#include <hwy/contrib/sort/vqsort-inl.h>
-#include <hwy/contrib/sort/vqsort.h>
-#include <hwy/contrib/sort/order.h>
-
-// clang-format on
-
 namespace hw = hwy::HWY_NAMESPACE;
-
-using HashVectorTable = emhash7::HashMap<uint32_t, std::vector<uint32_t>*>;
 
 namespace simdtag {
 
-class GradientClusterBuffer {
-   public:
-    GradientClusterBuffer(cv::Size size) : elements_(0) {
-        buffer_ = new (std::align_val_t(64)) uint64_t[size.width * size.height * 4];
-    }
-
-    GradientClusterBuffer(uint64_t* buffer, int elements) : buffer_(buffer), elements_(elements) {
-    }
-
-    // Budget friendly invalidation of object, gives up ownership of buffer
-    uint64_t* Take() {
-        uint64_t* result = buffer_;
-        buffer_ = nullptr;
-        return result;
-    }
-
-    size_t Size() {
-        return elements_;
-    }
-
-   protected:
-    uint64_t* buffer_;
-    size_t elements_;
-
-    friend class GradientClusters;
-};
+using GradientClusterHash = emhash7::HashMap<uint32_t, std::vector<uint32_t>>;
 
 HWY_BEFORE_NAMESPACE();
 namespace HWY_NAMESPACE {
@@ -185,12 +148,11 @@ template <int DX, int DY>
 inline auto __CalculateAndStoreGradientVector(const uint8_t* img, const uint8_t* img_row2,
                                               const uint32_t* labels, const uint32_t* labels_row2,
                                               int row, int col, int img_width,
-                                              HashVectorTable& hashmap) {
+                                              GradientClusterHash& hashmap) {
     constexpr hw::ScalableTag<uint32_t> d;
     constexpr hw::ScalableTag<uint64_t> d64;
     constexpr int N = hw::Lanes(d);
     constexpr int N64 = hw::Lanes(d64);
-    constexpr hw::FixedTag<uint32_t, N / 2> dHalf;
 
     // First pointer is always img or labels, but second pointer depends on DX and DY
     // DY selects between row1 and row2. DX can simply be added to that
@@ -251,38 +213,23 @@ inline auto __CalculateAndStoreGradientVector(const uint8_t* img, const uint8_t*
         mask = hw::AndNot(mdup, mask);
     }
 
-#if 1
     uint32_t hash_buf[N];
     uint32_t value_buf[N];
     int cnt = hw::CompressStore(vhash, mask, d, hash_buf);
     hw::CompressStore(vvalues, mask, d, value_buf);
+
     for (int i = 0; i < cnt; i++) {
-        std::vector<uint32_t>* bucket;
-        if (!hashmap.try_get(hash_buf[i], bucket)) {
-            bucket = new std::vector<uint32_t>;
-            hashmap.insert_unique(hash_buf[i], bucket);
+        std::vector<uint32_t>* bucket = hashmap.try_get(hash_buf[i]);
+        if (bucket == nullptr) {
+            std::vector<uint32_t> tmp;
+            tmp.push_back(value_buf[i]);
+            hashmap.insert_unique(hash_buf[i], tmp);
+        } else {
+            bucket->push_back(value_buf[i]);
         }
-        bucket->push_back(value_buf[i]);
     }
 
     return cnt;
-#else
-    // Convert 4 32bit into two 64 bit (hash << 32 | value)
-    const auto vhash64_u = hw::PromoteUpperTo(d64, vhash);
-    const auto vhash64_l = hw::PromoteLowerTo(d64, vhash);
-    const auto vvalues_u = hw::PromoteUpperTo(d64, vvalues);
-    const auto vvalues_l = hw::PromoteLowerTo(d64, vvalues);
-    const auto out_u = hw::ShiftLeft<32>(vhash64_u) | vvalues_u;
-    const auto out_l = hw::ShiftLeft<32>(vhash64_l) | vvalues_l;
-
-    // The storage locality costs far outweight the cost of computation for this problem
-    // so speed up will all come down to memory speed.
-    const auto mask_u = hw::PromoteMaskTo(d64, dHalf, UpperHalfOfMask(dHalf, mask));
-    const auto mask_l = hw::PromoteMaskTo(d64, dHalf, LowerHalfOfMask(dHalf, mask));
-
-    int mask_l_size = hw::CompressStore(out_l, mask_l, d64, output);
-    return mask_l_size + hw::CompressStore(out_u, mask_u, d64, output + mask_l_size);
-#endif
 }
 
 }  // namespace HWY_NAMESPACE
@@ -292,20 +239,17 @@ class GradientClusters {
    private:
     int points_;
     cv::Size size_;
-    HashVectorTable hash_;
 
    public:
     GradientClusters(cv::Size size) : size_(size) {
-        hash_.reserve(100);
     }
 
-    void Perform(cv::Mat1b& input, cv::Mat1i& labels, GradientClusterBuffer& gcb) {
-        // TODO: This should move to a function call
+    void Perform(cv::Mat1b& input, cv::Mat1i& labels, GradientClusterHash& hash) {
         constexpr hw::ScalableTag<uint32_t> d;
         constexpr int N = hw::Lanes(d);
-        uint32_t* buffer[N * 2];
-        // uint64_t* buffer = gcb.buffer_;
-        int top = 0;
+        hash.clear();
+        int cnt = 0;
+
         for (int r = 0; r < input.rows - 1; r++) {
             uint32_t* pLabels_start = labels.ptr<uint32_t>(r);
             uint32_t* pLabels_next_start = labels.ptr<uint32_t>(r + 1);
@@ -317,21 +261,20 @@ class GradientClusters {
                 uint32_t* pLabels_next = pLabels_next_start + c;
                 uint8_t* pimg = pimg_start + c;
                 uint8_t* pimg_next = pimg_next_start + c;
-                top += HWY_NAMESPACE::__CalculateAndStoreGradientVector<1, 0>(
-                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols, hash_);
-                top += HWY_NAMESPACE::__CalculateAndStoreGradientVector<0, 1>(
-                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols, hash_);
-                top += HWY_NAMESPACE::__CalculateAndStoreGradientVector<1, 1>(
-                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols, hash_);
-                top += HWY_NAMESPACE::__CalculateAndStoreGradientVector<-1, 1>(
-                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols, hash_);
+                cnt += HWY_NAMESPACE::__CalculateAndStoreGradientVector<1, 0>(
+                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols, hash);
+                cnt += HWY_NAMESPACE::__CalculateAndStoreGradientVector<0, 1>(
+                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols, hash);
+                cnt += HWY_NAMESPACE::__CalculateAndStoreGradientVector<1, 1>(
+                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols, hash);
+                cnt += HWY_NAMESPACE::__CalculateAndStoreGradientVector<-1, 1>(
+                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols, hash);
             }
         }
-        points_ = top;
-        gcb.elements_ = top;
-        // hw::VQSortStatic(buffer, top, hwy::SortDescending{});
+        points_ = cnt;
     }
 
+#if 0
     void Print(GradientClusterBuffer& gcb, int cols = 4) {
         for (int i = 0; i < points_; i++) {
             uint64_t val = gcb.buffer_[i];
@@ -344,22 +287,26 @@ class GradientClusters {
             }
         }
     }
+#endif
 
-    cv::Mat1b Draw(GradientClusterBuffer& gcb) {
+    cv::Mat1b Draw(GradientClusterHash& hash) {
         cv::Mat1b result = cv::Mat::zeros(size_, CV_8UC1);
 
-        for (int i = 0; i < points_; i++) {
-            GradientPoint p{static_cast<uint32_t>(gcb.buffer_[i])};
-            int y = (int)p.GetY();
-            int x = (int)p.GetX();
-            if (y < 0 || y >= size_.height || x < 0 || x >= size_.width) {
-                fmt::println("Out-of-bounds access: (y, x) = ({},{}", y, x);
-                continue;  // Skip this point to avoid crashing
-            }
+        for (auto vit = hash.cbegin(); vit != hash.cend(); vit++) {
+            std::vector<uint32_t> cluster = vit->second;
+            for (auto it = cluster.cbegin(); it != cluster.end(); it++) {
+                GradientPoint p(*it);
+                int y = (int)p.GetY();
+                int x = (int)p.GetX();
+                if (y < 0 || y >= size_.height || x < 0 || x >= size_.width) {
+                    fmt::println("Out-of-bounds access: (y, x) = ({},{}", y, x);
+                    continue;  // Skip this point to avoid crashing
+                }
 
-            assert((int)p.GetY() < size_.height);
-            assert((int)p.GetX() < size_.width);
-            result.at<uint8_t>((int)p.GetY(), (int)p.GetX()) += 255 >> 2;
+                assert((int)p.GetY() < size_.height);
+                assert((int)p.GetX() < size_.width);
+                result.at<uint8_t>((int)p.GetY(), (int)p.GetX()) += 255 >> 2;
+            }
         }
 
         return result;
