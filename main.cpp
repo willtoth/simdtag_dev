@@ -168,7 +168,14 @@ void CompressStore() {
 HWY_AFTER_NAMESPACE();
 
 int main() {
+    constexpr hw::ScalableTag<uint64_t> d;
+    constexpr int N = hw::Lanes(d);
     fmt::println("Hello");
+    fmt::println("HWY_STATIC_TARGET: {}", HWY_STATIC_TARGET);
+    fmt::println("HWY_TARGETS: {}", HWY_TARGETS);
+    fmt::println("HWY_SUPPORTED_TARGETS: {}", HWY_SUPPORTED_TARGETS);
+    fmt::println("HWY_TARGET: {}", HWY_TARGET);
+    fmt::println("Simd bit width: {}", N * 64);
 
     project::HWY_NAMESPACE::CompressStore();
 

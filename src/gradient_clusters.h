@@ -1,5 +1,7 @@
 #pragma once
 
+#define EMH_EXT
+
 #include <fmt/format.h>
 
 #include <array>
@@ -10,6 +12,7 @@
 
 #include "gradient_point.h"
 #include "simdtag/highway_utils.h"
+#include "third_party/emhash/hash_table7.hpp"
 
 // clang-format off
 
@@ -17,12 +20,14 @@
 
 #define VQSORT_ONLY_STATIC 1
 #include <hwy/contrib/sort/vqsort-inl.h>
+#include <hwy/contrib/sort/vqsort.h>
 #include <hwy/contrib/sort/order.h>
-#include <hwy/contrib/algo/copy-inl.h>
 
 // clang-format on
 
 namespace hw = hwy::HWY_NAMESPACE;
+
+using HashVectorTable = emhash7::HashMap<uint32_t, std::vector<uint32_t>*>;
 
 namespace simdtag {
 
@@ -179,7 +184,8 @@ template <int DX, int DY>
     requires(DX == 1 && DY == 0) || (DY == 1 && (DX >= -1 || DX <= 1))
 inline auto __CalculateAndStoreGradientVector(const uint8_t* img, const uint8_t* img_row2,
                                               const uint32_t* labels, const uint32_t* labels_row2,
-                                              int row, int col, int img_width, uint64_t* output) {
+                                              int row, int col, int img_width,
+                                              HashVectorTable& hashmap) {
     constexpr hw::ScalableTag<uint32_t> d;
     constexpr hw::ScalableTag<uint64_t> d64;
     constexpr int N = hw::Lanes(d);
@@ -245,6 +251,22 @@ inline auto __CalculateAndStoreGradientVector(const uint8_t* img, const uint8_t*
         mask = hw::AndNot(mdup, mask);
     }
 
+#if 1
+    uint32_t hash_buf[N];
+    uint32_t value_buf[N];
+    int cnt = hw::CompressStore(vhash, mask, d, hash_buf);
+    hw::CompressStore(vvalues, mask, d, value_buf);
+    for (int i = 0; i < cnt; i++) {
+        std::vector<uint32_t>* bucket;
+        if (!hashmap.try_get(hash_buf[i], bucket)) {
+            bucket = new std::vector<uint32_t>;
+            hashmap.insert_unique(hash_buf[i], bucket);
+        }
+        bucket->push_back(value_buf[i]);
+    }
+
+    return cnt;
+#else
     // Convert 4 32bit into two 64 bit (hash << 32 | value)
     const auto vhash64_u = hw::PromoteUpperTo(d64, vhash);
     const auto vhash64_l = hw::PromoteLowerTo(d64, vhash);
@@ -260,6 +282,7 @@ inline auto __CalculateAndStoreGradientVector(const uint8_t* img, const uint8_t*
 
     int mask_l_size = hw::CompressStore(out_l, mask_l, d64, output);
     return mask_l_size + hw::CompressStore(out_u, mask_u, d64, output + mask_l_size);
+#endif
 }
 
 }  // namespace HWY_NAMESPACE
@@ -269,16 +292,19 @@ class GradientClusters {
    private:
     int points_;
     cv::Size size_;
+    HashVectorTable hash_;
 
    public:
     GradientClusters(cv::Size size) : size_(size) {
+        hash_.reserve(100);
     }
 
     void Perform(cv::Mat1b& input, cv::Mat1i& labels, GradientClusterBuffer& gcb) {
         // TODO: This should move to a function call
         constexpr hw::ScalableTag<uint32_t> d;
         constexpr int N = hw::Lanes(d);
-        uint64_t* buffer = gcb.buffer_;
+        uint32_t* buffer[N * 2];
+        // uint64_t* buffer = gcb.buffer_;
         int top = 0;
         for (int r = 0; r < input.rows - 1; r++) {
             uint32_t* pLabels_start = labels.ptr<uint32_t>(r);
@@ -292,18 +318,18 @@ class GradientClusters {
                 uint8_t* pimg = pimg_start + c;
                 uint8_t* pimg_next = pimg_next_start + c;
                 top += HWY_NAMESPACE::__CalculateAndStoreGradientVector<1, 0>(
-                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols, buffer + top);
+                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols, hash_);
                 top += HWY_NAMESPACE::__CalculateAndStoreGradientVector<0, 1>(
-                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols, buffer + top);
+                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols, hash_);
                 top += HWY_NAMESPACE::__CalculateAndStoreGradientVector<1, 1>(
-                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols, buffer + top);
+                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols, hash_);
                 top += HWY_NAMESPACE::__CalculateAndStoreGradientVector<-1, 1>(
-                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols, buffer + top);
+                        pimg, pimg_next, pLabels, pLabels_next, r, c, input.cols, hash_);
             }
         }
         points_ = top;
         gcb.elements_ = top;
-        hw::VQSortStatic(buffer, top, hwy::SortDescending{});
+        // hw::VQSortStatic(buffer, top, hwy::SortDescending{});
     }
 
     void Print(GradientClusterBuffer& gcb, int cols = 4) {

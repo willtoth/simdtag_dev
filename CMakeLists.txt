@@ -20,7 +20,7 @@ find_package(OpenCV REQUIRED)
 find_package(HWY 1.2.0 REQUIRED)
 
 # Common compile options and include directories
-set(COMMON_COMPILE_OPTIONS "-std=c++20" "-fno-omit-frame-pointer" "-march=haswell" "-maes") # "-march=native" AVX2 --> "-march=haswell" "-maes"
+set(COMMON_COMPILE_OPTIONS "-std=c++20" "-fno-omit-frame-pointer" "-march=native") # "-march=native" AVX2 --> "-march=haswell" "-maes" "-march=alderlake"
 set(COMMON_INCLUDE_DIRS ${OpenCV_INCLUDE_DIRS} "include" "src")
 set(COMMON_LINK_TARGETS fmt::fmt hwy ${OpenCV_LIBS} Halide::Halide)
 set(COMMON_TARGET_DEFINES CMAKE_PROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}" CMAKE_PROJECT_BUILD_DIR="${CMAKE_BINARY_DIR}")

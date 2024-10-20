@@ -96,9 +96,8 @@ TEST(Bmrs, DualLabel) {
 
     {
         // TODO: Add a test that goes past 512 byte width boundary
-        cv::Mat1b image =
-                cv::imread("/home/will/src/apriltag_playground/assets/yacclab/testimage.png",
-                           cv::IMREAD_GRAYSCALE);
+        cv::Mat1b image = cv::imread(CMAKE_PROJECT_SOURCE_DIR "/assets/yacclab/testimage.png",
+                                     cv::IMREAD_GRAYSCALE);
         cv::Mat1i labels = cv::Mat1i{image.size(), 0};
         simdtag::BMRS ccl{image.size()};
 

@@ -164,6 +164,7 @@ TEST(GradientClusters, SimdMaskCalculation) {
     // v0 + v1 == 255
 }
 
+#if 0
 TEST(GradientClusters, SimdGradientClustersCalculations) {
     // Test by 32bit
     constexpr hw::ScalableTag<uint32_t> d;
@@ -195,6 +196,7 @@ TEST(GradientClusters, SimdGradientClustersCalculations) {
 
     EXPECT_EQ(written, idx);
 }
+#endif
 
 TEST(GradientClusters, SimdGradientClustersDups) {
     cv::Mat1b input = cv::imread(IMAGE_PATH, cv::IMREAD_GRAYSCALE);
