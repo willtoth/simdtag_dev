@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <fmt/format.h>
 
+#include <algorithm>
 #include <opencv2/core.hpp>
 
 #include "gradient_clusters.h"
@@ -10,10 +11,6 @@
 namespace hw = hwy::HWY_NAMESPACE;
 
 namespace simdtag {
-
-struct QuadCluster {
-    size_t start, length, minx, miny, maxx, maxy;
-};
 
 HWY_BEFORE_NAMESPACE();
 namespace HWY_NAMESPACE {
@@ -28,47 +25,59 @@ V32 __GetYVector(const V32& vvalue) {
     return hw::ShiftRight<20>(ShiftLeft<12>(vvalue));
 }
 
-QuadCluster __FindQuadCluster(uint64_t* buffer, size_t start, size_t elements) {
-    // constexpr hw::ScalableTag<uint32_t> d;
-    // constexpr int N = hw::Lanes(d);
-    // using VecT = Vec<decltype(d)>;
+std::pair<uint32_t, uint32_t> __FindCenterPoint(std::vector<uint32_t>& cluster) {
+    constexpr hw::ScalableTag<uint32_t> d;
+    constexpr int N = hw::Lanes(d);
 
-    // assert(elements > 0);
+    uint32_t* buffer = cluster.data();
+    size_t size = cluster.size();
 
-    // QuadCluster cluster;
-    // size_t length;
-    // cluster.start = start;
+    const auto va = hw::LoadU(d, buffer);
+    const auto vx = __GetXVector(va);
+    const auto vy = __GetYVector(va);
 
-    // // Create a vector of the first encountered hash (top 32 bits) to detect when this changes on
-    // a
-    //         // boundary between clusters
-    //         const auto vcurrent_hash = hw::LoadU(d, Set(d, static_cast<uint32_t>(buffer[0] >>
-    //         32)));
-    // bool isBoundary = false;
+    auto vx_min = vx;
+    auto vx_max = vx;
+    auto vy_min = vy;
+    auto vy_max = vy;
+    int i = N;
 
-    // hw::MFromD<decltype(d)> mask;
-    // for (length = 0; length < elements && !isBoundary; length += N) {
-    //     // TODO: Try either unrolling this a bit (manually) or just loading more of the buffer at
-    //     a
-    //             // time Load interleaved, reduction happens on lower half, boundary detection on
-    //             top
-    //             // half
-    //                     VecT vvalue,
-    //             vhash;
-    //     uint32_t* element = ((uint32_t*)buffer) + length;
-    //     hw::LoadInterleaved2(d, element, vvalue, vhash);
+    for (; i < size; i += N) {
+        const auto va = hw::LoadU(d, buffer + i);
+        const auto vx = __GetXVector(va);
+        const auto vy = __GetYVector(va);
 
-    //     // Values to X,Y
-    //     const auto vx = __GetXVector(vvalue);
-    //     const auto vy = __GetYVector(vvaleu);
+        vx_min = hw::Min(vx, vx_min);
+        vx_max = hw::Max(vx, vx_max);
+        vy_min = hw::Min(vy, vy_min);
+        vy_max = hw::Max(vy, vy_max);
+    }
 
-    //     mask = vhash == vcurrent_hash;
-    //     isBoundary = !hw::AllTrue(d, mask);
-    // }
+    uint32_t x_min = hw::ReduceMin(d, vx_min);
+    uint32_t x_max = hw::ReduceMax(d, vx_max);
+    uint32_t y_min = hw::ReduceMin(d, vy_min);
+    uint32_t y_max = hw::ReduceMax(d, vy_max);
 
-    // size_t end_count = hw::FindLastTrue(d, mask);
-    // for (int i = 0; i < end_count; i++) {
-    // }
+    // Non-aligned remaining
+    if (i != size) {
+        uint32_t* buffer_end = buffer + i - N;
+        for (int j = 0; j < N - (i - size); j++) {
+            x_min = std::min(buffer_end[i], x_min);
+            x_max = std::max(buffer_end[i], x_max);
+            y_min = std::min(buffer_end[i], y_min);
+            y_max = std::max(buffer_end[i], y_max);
+        }
+    }
+
+    // add some noise to (cx,cy) so that pixels get a more diverse set
+    // of theta estimates. This will help us remove more points.
+    // (Only helps a small amount. The actual noise values here don't
+    // matter much at all, but we want them [-1, 1]. (XXX with
+    // fixed-point, should range be bigger?)
+    float cx = (x_min + x_max) * 0.5 + 0.05118;
+    float cy = (y_min + y_max) * 0.5 + -0.028581;
+
+    return {cx, cy};
 }
 
 }  // namespace HWY_NAMESPACE
@@ -76,17 +85,25 @@ HWY_AFTER_NAMESPACE();
 
 class FitQuads {
    public:
-    // Two things to test here: Is it better to condense down to a single buffer of all the
-    // possibly valid quads (filter out a few bad candidates). OR store a list of indexes
-    // in the original buffer
-    FitQuads(GradientClusterHash& hash, int clusters) {
-        // Find boundary points between each group, and filter out invalid cases
+    static void Perform(GradientClusterHash& hash, cv::Size size) {
+        for (auto vit = hash.cbegin(); vit != hash.cend(); vit++) {
+            std::vector<uint32_t> cluster = vit->second;
+
+            // Remove clusters that are too small, or larger than the outline of the view. A typical
+            // point along an edge is added two times (because it has 2 unique neighbors). The
+            // maximum perimeter is 2w+2h.
+            if (cluster.size() < 24 || cluster.size() > 2 * (size.width * 2 + size.height * 2)) {
+                hash.erase(vit);
+                continue;
+            }
+            FitQuad(cluster);
+        }
     }
 
    private:
-    uint64_t* buffer_;
-    int clusters_;
-    size_t elements_;
+    static void FitQuad(std::vector<uint32_t>& cluster) {
+        auto [cx, cy] = HWY_NAMESPACE::__FindCenterPoint(cluster);
+    }
 };
 
 }  // namespace simdtag

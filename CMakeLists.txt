@@ -20,7 +20,7 @@ find_package(OpenCV REQUIRED)
 find_package(HWY 1.2.0 REQUIRED)
 
 # Common compile options and include directories
-set(COMMON_COMPILE_OPTIONS "-std=c++20" "-fno-omit-frame-pointer" "-march=native") # "-march=native" AVX2 --> "-march=haswell" "-maes" "-march=alderlake"
+set(COMMON_COMPILE_OPTIONS "-std=c++20" "-fno-omit-frame-pointer" "-march=alderlake") # "-march=native" AVX2 --> "-march=haswell" "-maes" "-march=alderlake"
 set(COMMON_INCLUDE_DIRS ${OpenCV_INCLUDE_DIRS} "include" "src")
 set(COMMON_LINK_TARGETS fmt::fmt hwy ${OpenCV_LIBS} Halide::Halide)
 set(COMMON_TARGET_DEFINES CMAKE_PROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}" CMAKE_PROJECT_BUILD_DIR="${CMAKE_BINARY_DIR}")
@@ -202,6 +202,16 @@ if(WITH_BENCHMARKS)
     target_compile_options(apriltag_bench PUBLIC -save-temps ${COMMON_COMPILE_OPTIONS})
     target_include_directories(apriltag_bench PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
     target_link_libraries(apriltag_bench benchmark::benchmark ${COMMON_LINK_TARGETS} simdtag apriltag adaptive_threshold halide_gradient_clusters)
+
+    # Scratchpad
+    add_executable(
+        scratchpad_bench
+        benchmark/scratchpad_bench.cpp
+        ${TRACY_SOURCE}
+    )
+    target_compile_options(scratchpad_bench PUBLIC -save-temps ${COMMON_COMPILE_OPTIONS})
+    target_include_directories(scratchpad_bench PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
+    target_link_libraries(scratchpad_bench benchmark::benchmark ${COMMON_LINK_TARGETS} simdtag apriltag adaptive_threshold halide_gradient_clusters)
 
 endif()
 
