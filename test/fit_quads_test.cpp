@@ -5,17 +5,50 @@
 
 #include <cstdlib>
 #include <opencv2/opencv.hpp>
+#include <vector>
 
 #include "gradient_point.h"
 
 using namespace simdtag;
 
-TEST(FitQuads, QuadBounds) {
-    // Test the first stage of the pipeline which should do the following:
-    // 1) Take a sorted list of GradientPoints
-    // 2) Split them into individual clusters - drop ones that don't match some criteria
-    // 3) Provide min/max bounding box
-    // rand(0);
+namespace {
+
+struct pt {
+    int x, y;
+};
+
+}  // namespace
+
+TEST(FitQuads, QuadCenter) {
+    std::srand(0);
+
+    pt data[] = {
+            {.x = 4, .y = 17},  {.x = 5, .y = 12},  {.x = 5, .y = 10},  {.x = 4, .y = 8},
+            {.x = 6, .y = 6},   {.x = 8, .y = 6},   {.x = 9, .y = 9},   {.x = 9, .y = 14},
+            {.x = 11, .y = 12}, {.x = 11, .y = 16}, {.x = 6, .y = 18},  {.x = 5, .y = 18},
+            {.x = 5, .y = 17},  {.x = 5, .y = 16},  {.x = 5, .y = 5},   {.x = 5, .y = 6},
+            {.x = 5, .y = 7},   {.x = 12, .y = 5},  {.x = 10, .y = 5},  {.x = 8, .y = 6},
+            {.x = 12, .y = 18}, {.x = 11, .y = 17}, {.x = 10, .y = 18}, {.x = 9, .y = 16},
+    };
+
+    int size = sizeof(data) / sizeof(pt);
+
+    std::vector<uint32_t> points;
+
+    for (int i = 0; i < size; i++) {
+        GradientPoint gp;
+        gp.SetX(data[i].x);
+        gp.SetY(data[i].y);
+
+        points.push_back(gp.RawValue());
+    }
+
+    auto [cx, cy] = HWY_NAMESPACE::__FindCenterPoint(points);
+
+    // EXPECT_EQ(cx, 16);
+    // EXPECT_EQ(cy, 22);
+
+    fmt::println("X: {}, Y: {}", cx, cy);
 
     // uint64_t gradient_buffer[260];
 

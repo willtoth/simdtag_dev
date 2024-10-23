@@ -56,8 +56,11 @@ make
 sudo make install
 ```
 
+# Spots that could likely use more attention
 
-
+- gradient clusters - hash + vector could likely use tuning?
+- Array + sort vs hash --> Hash seems faster on narrower targets, haven't done full profiling on array as a result
+- 
 
 ## Credit
 

@@ -22,15 +22,61 @@ V32 __GetXVector(const V32& vvalue) {
 }
 
 V32 __GetYVector(const V32& vvalue) {
-    return hw::ShiftRight<20>(ShiftLeft<12>(vvalue));
+    hw::DFromV<V32> d;
+    return hw::ShiftRight<8>(vvalue) & hw::Set(d, 0xFFFu);
 }
 
-std::pair<uint32_t, uint32_t> __FindCenterPoint(std::vector<uint32_t>& cluster) {
+inline void __CalculateSlope(std::vector<uint32_t>& cluster, std::pair<float, float>& center) {
+    constexpr hw::ScalableTag<float> d;
+    constexpr int N = hw::Lanes(d);
+
+    // Copy exact from apriltag, compare to hw::atan2
+    constexpr float quadrants[2][2] = {{-1 * (2 << 15), 0}, {2 * (2 << 15), 2 << 15}};
+
+    const auto vcx = hw::Set(d, center.first);
+    const auto vcy = hw::Set(d, center.second);
+
+    uint32_t* buffer = cluster.data();
+    size_t size = cluster.size();
+
+    auto vdot = hw::Zero(d);
+    int i = 0;
+    for (; i < size; i += N) {
+        const auto va = hw::LoadU(d, buffer + i);
+        const auto vx = __GetXVector(va);
+        const auto vy = __GetYVector(va);
+
+        const auto vdx = vx - vcx;
+        const auto vdy = vy - vcy;
+
+        dot += dx * p->gx + dy * p->gy;
+
+        float quadrant = quadrants[dy > 0][dx > 0];
+        if (dy < 0) {
+            dy = -dy;
+            dx = -dx;
+        }
+
+        if (dx < 0) {
+            float tmp = dx;
+            dx = dy;
+            dy = -tmp;
+        }
+        p->slope = quadrant + dy / dx;
+    }
+}
+
+// std::min std::max would likely vectorize here, std::minmax_element may not for some reason
+// easy enough to just manually vectorize and not worry
+inline std::pair<float, float> __FindCenterPoint(std::vector<uint32_t>& cluster) {
     constexpr hw::ScalableTag<uint32_t> d;
     constexpr int N = hw::Lanes(d);
 
     uint32_t* buffer = cluster.data();
     size_t size = cluster.size();
+
+    // Lazy (but valid) way to deal with initial condition
+    assert(size > 2 * N);
 
     const auto va = hw::LoadU(d, buffer);
     const auto vx = __GetXVector(va);
@@ -42,6 +88,7 @@ std::pair<uint32_t, uint32_t> __FindCenterPoint(std::vector<uint32_t>& cluster) 
     auto vy_max = vy;
     int i = N;
 
+    // size is guarenteed to be > 24 so no need to handle case of overrun on first 2*N elements
     for (; i < size; i += N) {
         const auto va = hw::LoadU(d, buffer + i);
         const auto vx = __GetXVector(va);
@@ -69,6 +116,7 @@ std::pair<uint32_t, uint32_t> __FindCenterPoint(std::vector<uint32_t>& cluster) 
         }
     }
 
+    // from apriltag, I don't quite understand the point, but carry over anyway
     // add some noise to (cx,cy) so that pixels get a more diverse set
     // of theta estimates. This will help us remove more points.
     // (Only helps a small amount. The actual noise values here don't
@@ -96,6 +144,7 @@ class FitQuads {
                 hash.erase(vit);
                 continue;
             }
+
             FitQuad(cluster);
         }
     }

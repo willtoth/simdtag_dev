@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <string>
 
+namespace simdtag {
+
 class GradientPoint {
    public:
     GradientPoint(uint32_t value) : value_(value) {
@@ -79,3 +81,5 @@ class GradientPoint {
    private:
     uint32_t value_;
 };
+
+}  // namespace simdtag
