@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <fmt/format.h>
+#include <hwy/highway.h>
 
 #include <algorithm>
 #include <opencv2/core.hpp>
@@ -27,14 +28,15 @@ V32 __GetYVector(const V32& vvalue) {
 }
 
 inline void __CalculateSlope(std::vector<uint32_t>& cluster, std::pair<float, float>& center) {
-    constexpr hw::ScalableTag<float> d;
+    constexpr hw::ScalableTag<uint32_t> d;
+    constexpr hw::ScalableTag<float> dfloat;
     constexpr int N = hw::Lanes(d);
 
     // Copy exact from apriltag, compare to hw::atan2
     constexpr float quadrants[2][2] = {{-1 * (2 << 15), 0}, {2 * (2 << 15), 2 << 15}};
 
-    const auto vcx = hw::Set(d, center.first);
-    const auto vcy = hw::Set(d, center.second);
+    const auto vcx = hw::Set(dfloat, center.first);
+    const auto vcy = hw::Set(dfloat, center.second);
 
     uint32_t* buffer = cluster.data();
     size_t size = cluster.size();
@@ -43,26 +45,26 @@ inline void __CalculateSlope(std::vector<uint32_t>& cluster, std::pair<float, fl
     int i = 0;
     for (; i < size; i += N) {
         const auto va = hw::LoadU(d, buffer + i);
-        const auto vx = __GetXVector(va);
-        const auto vy = __GetYVector(va);
+        const auto vx = hw::ConvertTo(dfloat, __GetXVector(va));
+        const auto vy = hw::ConvertTo(dfloat, __GetYVector(va));
 
         const auto vdx = vx - vcx;
         const auto vdy = vy - vcy;
 
-        dot += dx * p->gx + dy * p->gy;
+        // dot += dx * p->gx + dy * p->gy;
 
-        float quadrant = quadrants[dy > 0][dx > 0];
-        if (dy < 0) {
-            dy = -dy;
-            dx = -dx;
-        }
+        // float quadrant = quadrants[dy > 0][dx > 0];
+        // if (dy < 0) {
+        //     dy = -dy;
+        //     dx = -dx;
+        // }
 
-        if (dx < 0) {
-            float tmp = dx;
-            dx = dy;
-            dy = -tmp;
-        }
-        p->slope = quadrant + dy / dx;
+        // if (dx < 0) {
+        //     float tmp = dx;
+        //     dx = dy;
+        //     dy = -tmp;
+        // }
+        // p->slope = quadrant + dy / dx;
     }
 }
 

@@ -45,8 +45,8 @@ TEST(FitQuads, QuadCenter) {
 
     auto [cx, cy] = HWY_NAMESPACE::__FindCenterPoint(points);
 
-    // EXPECT_EQ(cx, 16);
-    // EXPECT_EQ(cy, 22);
+    EXPECT_NEAR(cx, 16.0512, 0.25);
+    EXPECT_NEAR(cy, 22.9714, 0.25);
 
     fmt::println("X: {}, Y: {}", cx, cy);
 

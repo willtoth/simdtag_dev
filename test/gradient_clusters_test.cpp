@@ -12,6 +12,7 @@
 #include "hwy/highway.h"
 #include "simdtag/highway_utils.h"
 #include "threshold.h"
+
 namespace hw = hwy::HWY_NAMESPACE;
 
 #define IMAGE_PATH CMAKE_PROJECT_SOURCE_DIR "/assets/apriltag/shapes.png"
@@ -114,7 +115,6 @@ void RunSimdValueCalculations() {
         GradientPoint p(result[i]);
         EXPECT_EQ(x + 0.5f * DX, p.GetX());
         EXPECT_EQ(DY * 0.5, p.GetY());
-        EXPECT_EQ(GetGradientValue(DX, DY), p.GradientValue());
         EXPECT_EQ(DX, p.GetDx());
         EXPECT_EQ(DY, p.GetDy());
         x++;

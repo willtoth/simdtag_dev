@@ -1,11 +1,27 @@
 #pragma once
 
 #include <fmt/format.h>
+#include <hwy/highway.h>
 
 #include <cstdint>
 #include <string>
 
 namespace simdtag {
+
+#if 0
+HWY_BEFORE_NAMESPACE();
+namespace HWY_NAMESPACE {
+
+class GradientPoint {
+    using GradientPointV32 = hw::VFromD<ScalableTag<uint32_t>>;
+    constexpr hw::ScalableTag<uint32_t> d_;
+
+    GradientPoint
+};
+
+}  // namespace HWY_NAMESPACE
+HWY_AFTER_NAMESPACE();
+#endif
 
 class GradientPoint {
    public:
@@ -23,11 +39,14 @@ class GradientPoint {
         value_ = (value_ & 0xFFF000FFu) | ((y * 2) << 8);
     }
 
+    // dx and dy must be in range [-1, 1]
     void SetDxDy(int dx, int dy) {
-        value_ &= ~0x6;
-        uint32_t tmp = 0;
+        value_ &= ~0xF0;
 
-        value_ |= tmp << 1;
+        dx += 1;
+        dy += 1;
+
+        value_ |= (dx << 6 | dy << 4);
     }
 
     void SetBlackToWhite(int v0, int v1) {
@@ -44,27 +63,15 @@ class GradientPoint {
     }
 
     int GetDx() {
-        switch (GradientValue()) {
-            case 0:
-            case 1:
-                return 1;
-            case 3:
-                return -1;
-            default:
-                return 0;
-        }
+        return ((value_ >> 6) & 0x3) - 1;
     }
 
     int GetDy() {
-        return GradientValue() != 0;
+        return ((value_ >> 4) & 0x3) - 1;
     }
 
     bool GetBlackToWhite() {
         return value_ & 1;
-    }
-
-    int GradientValue() {
-        return static_cast<int>((value_ & 0x6u) >> 1);
     }
 
     uint32_t RawValue() {

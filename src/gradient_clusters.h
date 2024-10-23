@@ -69,6 +69,7 @@ constexpr auto GenerateSequence(D d) {
 }
 
 // Restricted to 32bit lane size output
+// TODO: Refactor SIMD 32-bit gradient point creation by moving it to gradient_point.h
 template <int DX, int DY>
     requires(DX == 1 && DY == 0) || (DY == 1 && (DX >= -1 || DX <= 1))
 inline V32 __CalculateValue(const uint8_t* img_A, const uint8_t* img_B, int x, int y) {
@@ -78,7 +79,8 @@ inline V32 __CalculateValue(const uint8_t* img_A, const uint8_t* img_B, int x, i
 
     constexpr auto kSequenceBuffer = GenerateSequence(d);
 
-    constexpr uint32_t dxy_mask = static_cast<uint32_t>(-(DX - 1) + DY) << 1;
+    // Bits
+    constexpr uint32_t dxy_mask = static_cast<uint32_t>(((DX + 1) << 2) + (DY + 1)) << 4;
 
     const auto vSequenceX = hw::LoadU(d, kSequenceBuffer.data());
 
