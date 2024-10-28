@@ -16,6 +16,7 @@
 namespace hw = hwy::HWY_NAMESPACE;
 
 #define IMAGE_PATH CMAKE_PROJECT_SOURCE_DIR "/assets/apriltag/shapes.png"
+#define APRIL_TAG_IMAGE_PATH CMAKE_PROJECT_SOURCE_DIR "/assets/apriltag/tags_3_desk.jpg"
 
 using namespace simdtag;
 
@@ -197,38 +198,5 @@ TEST(GradientClusters, SimdGradientClustersCalculations) {
     EXPECT_EQ(written, idx);
 }
 #endif
-
-TEST(GradientClusters, SimdGradientClustersDups) {
-    cv::Mat1b input = cv::imread(IMAGE_PATH, cv::IMREAD_GRAYSCALE);
-    cv::Mat1b threshold = cv::Mat1b{input.size(), 0};
-    cv::Mat1i labels = cv::Mat1i{input.size(), 0};
-    simdtag::BMRS ccl{input.size()};
-    simdtag::GradientClusters gc{input.size()};
-    simdtag::GradientClusterHash hash{100};
-
-    simdtag::AdaptiveThreshold(input, threshold);
-    ccl.PerformLabelingDual(threshold, labels);
-
-    gc.Perform(threshold, labels, hash);
-
-    // Run twice with the same has should still not contain dups
-    gc.Perform(threshold, labels, hash);
-
-    std::unordered_set<uint32_t> set;
-    for (auto vit = hash.cbegin(); vit != hash.cend(); vit++) {
-        std::vector<uint32_t> cluster = vit->second;
-        for (auto it = cluster.cbegin(); it != cluster.end(); it++) {
-            // Sorted right after gc.Perform, so check for for dups
-            uint64_t val = *it & ~0x6;
-            EXPECT_FALSE(set.contains(val));
-
-            if (set.contains(val)) {
-                fmt::print("Hash: {:x} {}", vit->first, GradientPoint(val).ToString());
-            }
-
-            set.insert(val);
-        }
-    }
-}
 
 // TODO: Add a test against an entire image

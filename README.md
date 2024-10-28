@@ -13,6 +13,7 @@ Near term goals:
 
 - Speed up _single threaded_ performance of the Apriltag alorithm by at least 4x on platforms with support for AVX2 instructions (basically all modern x86). Target platform is Intel N100, and will be tested on the [Radxa X4](https://radxa.com/products/x/x4/) which is less than $100.
 - Export apriltag API as a C layer to allow LD_PRELOAD against existing solutions today, i.e. [PhotonVision](https://photonvision.org/)
+- Length agnostic SIMD width to enable more platforms
 - Basic test support against AVX2 instructions
 - Basic experiements on ARM just to see what happens
 

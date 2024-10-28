@@ -54,23 +54,31 @@ class GradientPoint {
         value_ |= (v0 < v1);
     }
 
-    float GetX() {
+    float GetX() const {
         return static_cast<float>(value_ >> 20) / 2.0f;
     }
 
-    float GetY() {
+    float GetY() const {
         return static_cast<float>((value_ & 0x000FFF00u) >> 8) / 2.0f;
     }
 
-    int GetDx() {
+    int GetIntX() const {
+        return static_cast<float>(value_ >> 20) / 2.0f;
+    }
+
+    int GetIntY() const {
+        return static_cast<float>((value_ & 0x000FFF00u) >> 8) / 2.0f;
+    }
+
+    int GetDx() const {
         return ((value_ >> 6) & 0x3) - 1;
     }
 
-    int GetDy() {
+    int GetDy() const {
         return ((value_ >> 4) & 0x3) - 1;
     }
 
-    bool GetBlackToWhite() {
+    bool GetBlackToWhite() const {
         return value_ & 1;
     }
 

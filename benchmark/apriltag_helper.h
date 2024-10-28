@@ -7,6 +7,7 @@
 #include "apriltag.h"
 #include "common/image_u8x3.h"
 #include "common/unionfind.h"
+#include "common/workerpool.h"
 
 struct pt {
     // Note: these represent 2*actual value.

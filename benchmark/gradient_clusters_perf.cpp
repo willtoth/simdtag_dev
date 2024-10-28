@@ -7,6 +7,8 @@
 #include "common/pjpeg.h"
 #include "common/unionfind.h"
 #include "common/workerpool.h"
+#include "common/zarray.h"
+#include "fit_quads.h"
 #include "fmt/format.h"
 #include "gradient_clusters.h"
 #include "simdtag/vision_utils.h"
@@ -37,6 +39,8 @@ static void Perf_GradientClusters() {
     for (int i = 0; i < PERF_ITERATION; i++) {
         gc.Perform(threshold, labels, hash);
     }
+
+    simdtag::FitQuads::Perform(hash, input.size());
 
     // gc.Print(buffer);
     cv::Mat1b result = gc.Draw(hash);
@@ -78,14 +82,23 @@ static void Perf_AprilTagGradientClusters() {
 
     cv::imwrite(filename.str(), DrawGradientClustersBlackAndWhite(w, h, clusters));
 
-    // int sz = zarray_size(clusters);
-    // int total = 0;
-    // for (int i = 0; i < sz; i++) {
-    //     zarray_t** cluster;
-    //     zarray_get_volatile(clusters, i, &cluster);
-    //     total += zarray_size(*cluster);
-    // }
-    // fmt::println("Total cluster points (after filtering): {}", total);
+#if 0
+    int sz = zarray_size(clusters);
+    for (int i = 0; i < sz; i++) {
+        zarray_t* cluster;
+        zarray_get(clusters, i, &cluster);
+        int cluster_size = zarray_size(cluster);
+        fmt::print("{{");
+        for (int j = 0; j < cluster_size; j++) {
+            struct pt* p;
+            zarray_get_volatile(cluster, j, &p);
+            int gx = p->gx > 0 ? 1 : p->gx < 0 ? -1 : 0;
+            int gy = p->gy > 0 ? 1 : p->gy < 0 ? -1 : 0;
+            fmt::print("{{{},{},{},{}}},", p->x, p->y, gx, gy);
+        }
+        fmt::print("}}");
+    }
+#endif
 }
 
 int main() {

@@ -193,6 +193,15 @@ if(WITH_BENCHMARKS)
     target_include_directories(gradient_clusters_bench PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
     target_link_libraries(gradient_clusters_bench benchmark::benchmark ${COMMON_LINK_TARGETS} simdtag apriltag adaptive_threshold halide_gradient_clusters)
 
+    add_executable(
+        fit_quads_bench
+        benchmark/fit_quads_bench.cpp
+        ${TRACY_SOURCE}
+    )
+    target_compile_options(fit_quads_bench PUBLIC -save-temps ${COMMON_COMPILE_OPTIONS})
+    target_include_directories(fit_quads_bench PRIVATE ${OpenCV_INCLUDE_DIRS} "include" "src")
+    target_link_libraries(fit_quads_bench benchmark::benchmark ${COMMON_LINK_TARGETS} simdtag apriltag adaptive_threshold halide_gradient_clusters)
+
     # All
     add_executable(
         apriltag_bench
