@@ -13,13 +13,14 @@
 
 #include "gradient_point.h"
 #include "simdtag/highway_utils.h"
-#include "third_party/emhash/hash_table7.hpp"
+#include "third_party/emhash/hash_table5.hpp"
 
 namespace hw = hwy::HWY_NAMESPACE;
 
 namespace simdtag {
 
-using GradientClusterHash = emhash7::HashMap<uint32_t, std::vector<uint32_t>>;
+using ClusterStore = std::vector<uint32_t>;
+using GradientClusterHash = emhash5::HashMap<uint32_t, ClusterStore>;
 
 HWY_BEFORE_NAMESPACE();
 namespace HWY_NAMESPACE {
@@ -221,9 +222,9 @@ inline auto __CalculateAndStoreGradientVector(const uint8_t* img, const uint8_t*
     hw::CompressStore(vvalues, mask, d, value_buf);
 
     for (int i = 0; i < cnt; i++) {
-        std::vector<uint32_t>* bucket = hashmap.try_get(hash_buf[i]);
+        ClusterStore* bucket = hashmap.try_get(hash_buf[i]);
         if (bucket == nullptr) {
-            std::vector<uint32_t> tmp;
+            ClusterStore tmp;
             tmp.push_back(value_buf[i]);
             hashmap.insert_unique(hash_buf[i], tmp);
         } else {
@@ -295,7 +296,7 @@ class GradientClusters {
         cv::Mat1b result = cv::Mat::zeros(size_, CV_8UC1);
 
         for (auto vit = hash.cbegin(); vit != hash.cend(); vit++) {
-            std::vector<uint32_t> cluster = vit->second;
+            ClusterStore cluster = vit->second;
             for (auto it = cluster.cbegin(); it != cluster.end(); it++) {
                 GradientPoint p(*it);
                 int y = (int)p.GetY();

@@ -49,7 +49,7 @@ V32 __GetGyVector(const V32& vvalue) {
     hw::DFromV<V32> d;
     return hw::ShiftRight<4>(vvalue) + hw::Set(d, 1);
 }
-inline void __SortBySlopeApriltag(std::vector<uint32_t>& cluster, std::pair<float, float>& center) {
+inline void __SortBySlopeApriltag(ClusterStore& cluster, std::pair<float, float>& center) {
     constexpr hw::ScalableTag<uint32_t> d;
     constexpr hw::ScalableTag<uint64_t> d64;
     constexpr hw::ScalableTag<float> dfloat;
@@ -127,7 +127,7 @@ inline void __SortBySlopeApriltag(std::vector<uint32_t>& cluster, std::pair<floa
     }
 }
 
-inline float __SortBySlope(std::vector<uint32_t>& cluster, std::pair<float, float>& center) {
+inline float __SortBySlope(ClusterStore& cluster, std::pair<float, float>& center) {
     constexpr hw::ScalableTag<uint32_t> d;
     constexpr hw::ScalableTag<uint64_t> d64;
     constexpr hw::ScalableTag<float> dfloat;
@@ -217,7 +217,7 @@ inline float __SortBySlope(std::vector<uint32_t>& cluster, std::pair<float, floa
     return 0.0f;
 }
 
-inline void __SortBySlopeAtan2(std::vector<uint32_t>& cluster, std::pair<float, float>& center) {
+inline void __SortBySlopeAtan2(ClusterStore& cluster, std::pair<float, float>& center) {
     constexpr hw::ScalableTag<uint32_t> d;
     constexpr hw::ScalableTag<float> dfloat;
     constexpr int N = hw::Lanes(d);
@@ -255,7 +255,7 @@ inline void __SortBySlopeAtan2(std::vector<uint32_t>& cluster, std::pair<float, 
 
 // std::min std::max would likely vectorize here, std::minmax_element may not for some reason
 // easy enough to just manually vectorize and not worry
-inline std::pair<float, float> __FindCenterPoint(std::vector<uint32_t>& cluster) {
+inline std::pair<float, float> __FindCenterPoint(ClusterStore& cluster) {
     constexpr hw::ScalableTag<uint32_t> d;
     constexpr int N = hw::Lanes(d);
 
@@ -324,7 +324,7 @@ class FitQuads {
    public:
     static void Perform(GradientClusterHash& hash, cv::Size size) {
         for (auto vit = hash.cbegin(); vit != hash.cend(); vit++) {
-            std::vector<uint32_t> cluster = vit->second;
+            ClusterStore cluster = vit->second;
 
             // Remove clusters that are too small, or larger than the outline of the view. A typical
             // point along an edge is added two times (because it has 2 unique neighbors). The
@@ -338,7 +338,7 @@ class FitQuads {
     }
 
    private:
-    static void FitQuad(std::vector<uint32_t>& cluster) {
+    static void FitQuad(ClusterStore& cluster) {
         auto center = HWY_NAMESPACE::__FindCenterPoint(cluster);
         HWY_NAMESPACE::__SortBySlope(cluster, center);
     }

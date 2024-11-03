@@ -42,7 +42,7 @@ TEST(FitQuads, QuadCenterAndSort) {
     std::array<pt, size> expected;
     std::copy(std::begin(data), std::end(data), expected.begin());
 
-    std::vector<uint32_t> points;
+    ClusterStore points;
 
     for (int i = 0; i < size; i++) {
         GradientPoint gp;
