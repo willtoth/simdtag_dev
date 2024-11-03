@@ -61,7 +61,7 @@ sudo make install
 
 - gradient clusters - hash + vector could likely use tuning?
 - Array + sort vs hash --> Hash seems faster on narrower targets, haven't done full profiling on array as a result
-- 
+- Fit_Quads step for sorting allocates an array, copies data over, then sorts, is this faster than other options? Look at either keeping it in 64-bit from the start, or x86-simd-sort has a 2 array sort
 
 ## Credit
 

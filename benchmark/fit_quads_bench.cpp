@@ -46,6 +46,112 @@ static void BM_FitQuads(benchmark::State& state) {
     }
 }
 
+////////////////////////////////////////////////////
+//////////// Direct from apriltag code /////////////
+////////////////////////////////////////////////////
+
+float pt_compare_angle(struct pt* a, struct pt* b) {
+    return a->slope - b->slope;
+}
+
+static inline void ptsort(struct pt* pts, int sz) {
+#define MAYBE_SWAP(arr, apos, bpos)                         \
+    if (pt_compare_angle(&(arr[apos]), &(arr[bpos])) > 0) { \
+        tmp = arr[apos];                                    \
+        arr[apos] = arr[bpos];                              \
+        arr[bpos] = tmp;                                    \
+    };
+
+    if (sz <= 1) return;
+
+    if (sz == 2) {
+        struct pt tmp;
+        MAYBE_SWAP(pts, 0, 1);
+        return;
+    }
+
+    // NB: Using less-branch-intensive sorting networks here on the
+    // hunch that it's better for performance.
+    if (sz == 3) {  // 3 element bubble sort is optimal
+        struct pt tmp;
+        MAYBE_SWAP(pts, 0, 1);
+        MAYBE_SWAP(pts, 1, 2);
+        MAYBE_SWAP(pts, 0, 1);
+        return;
+    }
+
+    if (sz == 4) {  // 4 element optimal sorting network.
+        struct pt tmp;
+        MAYBE_SWAP(pts, 0, 1);  // sort each half, like a merge sort
+        MAYBE_SWAP(pts, 2, 3);
+        MAYBE_SWAP(pts, 0, 2);  // minimum value is now at 0.
+        MAYBE_SWAP(pts, 1, 3);  // maximum value is now at end.
+        MAYBE_SWAP(pts, 1, 2);  // that only leaves the middle two.
+        return;
+    }
+    if (sz == 5) {
+        // this 9-step swap is optimal for a sorting network, but two
+        // steps slower than a generic sort.
+        struct pt tmp;
+        MAYBE_SWAP(pts, 0, 1);  // sort each half (3+2), like a merge sort
+        MAYBE_SWAP(pts, 3, 4);
+        MAYBE_SWAP(pts, 1, 2);
+        MAYBE_SWAP(pts, 0, 1);
+        MAYBE_SWAP(pts, 0, 3);  // minimum element now at 0
+        MAYBE_SWAP(pts, 2, 4);  // maximum element now at end
+        MAYBE_SWAP(pts, 1, 2);  // now resort the three elements 1-3.
+        MAYBE_SWAP(pts, 2, 3);
+        MAYBE_SWAP(pts, 1, 2);
+        return;
+    }
+
+#undef MAYBE_SWAP
+
+    // a merge sort with temp storage.
+
+    struct pt* tmp = (struct pt*)malloc(sizeof(struct pt) * sz);
+
+    memcpy(tmp, pts, sizeof(struct pt) * sz);
+
+    int asz = sz / 2;
+    int bsz = sz - asz;
+
+    struct pt* as = &tmp[0];
+    struct pt* bs = &tmp[asz];
+
+    ptsort(as, asz);
+    ptsort(bs, bsz);
+
+#define MERGE(apos, bpos)                               \
+    if (pt_compare_angle(&(as[apos]), &(bs[bpos])) < 0) \
+        pts[outpos++] = as[apos++];                     \
+    else                                                \
+        pts[outpos++] = bs[bpos++];
+
+    int apos = 0, bpos = 0, outpos = 0;
+    while (apos + 8 < asz && bpos + 8 < bsz) {
+        MERGE(apos, bpos);
+        MERGE(apos, bpos);
+        MERGE(apos, bpos);
+        MERGE(apos, bpos);
+        MERGE(apos, bpos);
+        MERGE(apos, bpos);
+        MERGE(apos, bpos);
+        MERGE(apos, bpos);
+    }
+
+    while (apos < asz && bpos < bsz) {
+        MERGE(apos, bpos);
+    }
+
+    if (apos < asz) memcpy(&pts[outpos], &as[apos], (asz - apos) * sizeof(struct pt));
+    if (bpos < bsz) memcpy(&pts[outpos], &bs[bpos], (bsz - bpos) * sizeof(struct pt));
+
+    free(tmp);
+
+#undef MERGE
+}
+
 static void fit_quads_epoch1(apriltag_detector_t* td, image_u8_t* im, zarray_t* cluster,
                              int tag_width) {
     int res = 0;
@@ -122,6 +228,7 @@ static void fit_quads_epoch1(apriltag_detector_t* td, image_u8_t* im, zarray_t* 
         }
         p->slope = quadrant + dy / dx;
     }
+    ptsort((struct pt*)cluster->data, zarray_size(cluster));
 }
 
 static void BM_AprilTagFitQuads(benchmark::State& state) {
