@@ -1,5 +1,16 @@
 # Simdtag
 
+- :x: Decemate
+- :white_check_mark: Adaptive Threshold
+- :white_check_mark: Connected Component Labeling
+- :white_check_mark: Fit Quads - Point Sort
+- :construction: Fit Quads - Caclulate Moments
+- :white_square_button: Fit Quads - Find Corners
+- :white_square_button: Fit Quads - Remaining Functions
+- :white_square_button: Quad Decoding/Refinement
+- :white_square_button: More Test Images
+- :white_square_button: Threading
+
 In its current form, this project is an exploritory effort to speed up [apriltags](https://github.com/AprilRobotics/apriltag), specifically for lower cost hardware. For a higher performance CUDA based implementation, look at the approach taken by [frc971](https://github.com/frc971/971-Robot-Code/blob/main/frc971/orin/apriltag.cc).
 
 Apriltag is chosen over cv::aruco as it seems to perform better for pose stability, especially at longer distances.
